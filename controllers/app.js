@@ -1,4 +1,4 @@
-/**
+/** 
  * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,81 +42,137 @@ class ChatApp {
   }
 
   /**
-   * Executes the Chat app and returns the resulting
-   * [action](https://developers.google.com/workspace/add-ons/chat/build#actions).
+   * Executes the Chat app and returns the resulting action.
    * @return {Promise<Object>} The action to execute as response.
    */
   async execute() {
     if (this.event.chat.addedToSpacePayload) {
       this.spaceName = this.event.chat.addedToSpacePayload.space.name;
-      this.configCompleteRedirectUrl = this.event.chat.addedToSpacePayload.configCompleteRedirectUri;
-      return this.handleAddedToSpaceOrMessage();
-    } else if (this.event.chat.messagePayload) {
+      this.configCompleteRedirectUrl =
+        this.event.chat.addedToSpacePayload.configCompleteRedirectUri;
+      return this.handleAddedToSpace();
+    }
+
+    if (this.event.chat.messagePayload) {
       this.spaceName = this.event.chat.messagePayload.space.name;
-      this.configCompleteRedirectUrl = this.event.chat.messagePayload.configCompleteRedirectUri;
-      return this.handleAddedToSpaceOrMessage();
-    } else if (this.event.chat.removedFromSpacePayload) {
+      this.configCompleteRedirectUrl =
+        this.event.chat.messagePayload.configCompleteRedirectUri;
+      return this.handleMessage();
+    }
+
+    if (this.event.chat.removedFromSpacePayload) {
       this.spaceName = this.event.chat.removedFromSpacePayload.space.name;
       return this.handleRemovedFromSpace();
     }
+
     return {};
   }
 
   /**
-   * Handles the added to space or message event by sending back a welcome message.
-   * It also adds the space to storage, queries all messages currently in the space,
-   * and saves all the messages into storage.
-   * @return {Promise<Object>} A create message action with welcome text to the space.
+   * Runs one-time setup when the app is added to a space.
+   * - Stores the space
+   * - Reads existing messages (history) and stores them
+   * - Creates the Workspace Events subscription
+   * - Sends a single welcome message
    */
-  async handleAddedToSpaceOrMessage() {
+  async handleAddedToSpace() {
     if (env.logging) {
       console.log(JSON.stringify({
-        message: 'Saving message history and subscribing to the space.',
+        message: 'AddedToSpace: saving message history and subscribing.',
         spaceName: this.spaceName,
         userName: this.userName,
       }));
     }
+
     await FirestoreService.createSpace(this.spaceName);
 
     try {
-      // List and save the previous messages from the space.
+      // List and save the previous messages from the space (one-time).
       const messages = await UserAuthChatService.listUserMessages(
         this.spaceName, this.userName);
       await FirestoreService.createOrUpdateMessages(this.spaceName, messages);
 
-      // Create space subscription.
+      // Create space subscription (idempotent; may return ALREADY_EXISTS).
+      await UserAuthEventsService.createSpaceSubscription(
+        this.spaceName, this.userName);
+
+    } catch (e) {
+      if (e.name === 'InvalidTokenException') {
+        return {
+          basicAuthorizationPrompt: {
+            authorizationUrl: generateAuthUrl(
+              this.userName,
+              this.configCompleteRedirectUrl
+            ),
+            resource: 'AI Knowledge Assistant'
+          }
+        };
+      }
+      throw e;
+    }
+
+    // Welcome message only ONCE (added to space).
+    const text = 'Olá! Eu sou o cwayassistant. Eu ajudo a responder perguntas com base no histórico de conversas.'
+      + 'Em espaços, me mencione com @cwayassistant e faça uma pergunta ou dê uma instrução (ex.: "@cwayassistant resuma a conversa de hoje").'
+      + 'Em mensagens diretas, é só perguntar.';
+
+    return {
+      hostAppDataAction: {
+        chatDataAction: {
+          createMessageAction: {
+            message: {text: text}
+          }
+        }
+      }
+    };
+  }
+
+  /**
+   * Handles normal message events (mentions / DMs).
+   * IMPORTANT: do NOT send the welcome message again.
+   * Only ensures subscription exists OR prompts OAuth if missing token.
+   */
+  async handleMessage() {
+    if (env.logging) {
+      console.log(JSON.stringify({
+        message: 'MessagePayload: received message event (no welcome).',
+        spaceName: this.spaceName,
+        userName: this.userName,
+      }));
+    }
+
+    await FirestoreService.createSpace(this.spaceName);
+
+    try {
+      // Keep it lightweight. No message history scan here.
       await UserAuthEventsService.createSpaceSubscription(
         this.spaceName, this.userName);
     } catch (e) {
       if (e.name === 'InvalidTokenException') {
-        // App doesn't have a refresh token for the user.
-        // Request configuration to obtain OAuth2 tokens.
-        return { basicAuthorizationPrompt: {
-          authorizationUrl: generateAuthUrl(this.userName, this.configCompleteRedirectUrl),
-          resource: 'AI Knowledge Assistant'
-        }};
+        return {
+          basicAuthorizationPrompt: {
+            authorizationUrl: generateAuthUrl(
+              this.userName,
+              this.configCompleteRedirectUrl
+            ),
+            resource: 'AI Knowledge Assistant'
+          }
+        };
       }
-      // Rethrow unrecognized errors.
       throw e;
     }
 
-    // Reply with welcome message.
-    const text = 'Thank you for adding me to this space. I help answer'
-      + ' questions based on past conversation in this space. Go ahead and ask'
-      + ' me a question!';
-    return { hostAppDataAction: { chatDataAction: { createMessageAction: {
-      message: {text: text}
-    }}}};
+    // No direct response here; eventsApp will post the answer.
+    return {};
   }
 
   /**
-   * Handles the removed from space event by deleting the space subscriptions
-   * and deleting the space from storage.
+   * Handles the removed from space event by deleting subscriptions and storage.
    */
   async handleRemovedFromSpace() {
     if (env.logging) {
       console.log(JSON.stringify({
-        message: 'Deleting space subscriptions and message history.',
+        message: 'RemovedFromSpace: deleting subscriptions and message history.',
         spaceName: this.spaceName,
       }));
     }
@@ -127,14 +183,6 @@ class ChatApp {
 }
 
 module.exports = {
-  /**
-   * Executes the Chat app and returns the resulting
-   * [action](https://developers.google.com/workspace/add-ons/chat/build#actions).
-   * @param {!Object} event The
-   * [event](https://developers.google.com/workspace/add-ons/concepts/event-objects#chat-event-object)
-   * received from Google Chat.
-   * @return {Promise<Object>} The action to execute as response.
-   */
   execute: async function (event) {
     return new ChatApp(event).execute();
   }

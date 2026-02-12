@@ -2,85 +2,175 @@
  * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * ...
  */
 
 /**
- * @fileoverview Service that calls the Chat API to create messages using the
- * app's credentials.
+ * @fileoverview Serviço que chama a Google Chat API usando as credenciais do USUÁRIO
+ * (OAuth2) para ler histórico de mensagens do espaço.
+ *
+ * Isso é o que permite tentar capturar mensagens "anteriores à adição do bot",
+ * porque quem lista é o usuário (membro do espaço), não o app/bot.
+ *
+ * Referência:
+ * - spaces.messages.list: lista mensagens em um space e é paginado.
+ * - Escopos de usuário aceitos incluem chat.messages.readonly / chat.messages. 
+ *
+ * Observação:
+ * - Se spaceHistoryState estiver HISTORY_OFF, mensagens podem ser retidas só por 24h. :contentReference[oaicite:3]{index=3}
  */
+
+'use strict';
 
 const chat = require('@googleapis/chat');
+const { env } = require('../env.js');
 
-/** The scope needed to call the Chat API as an app. */
-const CHAT_BOT_SCOPE = ['https://www.googleapis.com/auth/chat.bot'];
+const { Message } = require('../model/message');
+const { InvalidTokenException } = require('../model/exceptions');
+
+const { FirestoreService } = require('./firestore-service');
+const { initializeOauth2Client } = require('./user-auth');
 
 /**
- * Initializes the Chat API client with app credentials.
- * @returns {Promise<chat.chat_v1.Chat>} An initialized Chat API client.
+ * Log estruturado em JSON (Cloud Run / Functions Gen2 friendly).
  */
-async function initializeChatClient() {
-  // Authenticate with Application Default Credentials.
-  const auth = new chat.auth.GoogleAuth({scopes: CHAT_BOT_SCOPE});
-  const authClient = await auth.getClient();
-
-  // Create the Chat API client with app credentials.
-  const chatClient = chat.chat({
-    version: 'v1',
-    auth: authClient
-  });
-  return chatClient;
+function logJson(severity, payload) {
+  if (!env?.logging) return;
+  const line = JSON.stringify({ severity, ...payload });
+  if (severity === 'ERROR') console.error(line);
+  else if (severity === 'WARNING') console.warn(line);
+  else console.log(line);
 }
 
 /**
- * Service to create Google Chat messages using app credentials.
+ * Extrai info útil do erro (GaxiosError) sem circular.
  */
-exports.AppAuthChatService = {
+function safeError(err) {
+  return {
+    name: err?.name,
+    message: err?.message,
+    code: err?.code,
+    httpStatus: err?.response?.status,
+    httpStatusText: err?.response?.statusText,
+    data: err?.response?.data,
+  };
+}
 
+function isUnauthorized(err) {
+  const s = err?.response?.status;
+  return s === 401;
+}
+
+function isInsufficientScopes(err) {
+  const s = err?.response?.status;
+  const msg = (err?.response?.data?.error?.message || err?.message || '').toLowerCase();
+  // Padrão comum: 403 + "insufficient authentication scopes"
+  return s === 403 && msg.includes('insufficient') && msg.includes('scope');
+}
+
+/**
+ * Inicializa um Chat client com OAuth do usuário.
+ * @param {!string} userName Ex: "users/AAAA..."
+ * @return {Promise<chat.chat_v1.Chat>}
+ */
+async function initializeChatClientWithUser(userName) {
+  const tokens = await FirestoreService.getUserToken(userName);
+  if (!tokens) {
+    throw new InvalidTokenException('Token not found');
+  }
+
+  const oauth2Client = initializeOauth2Client({
+    access_token: tokens.accessToken,
+    refresh_token: tokens.refreshToken,
+  });
+
+  return chat.chat({ version: 'v1', auth: oauth2Client });
+}
+
+exports.UserAuthChatService = {
   /**
-   * Creates a message by calling the Chat API with app credentials.
+   * Lista mensagens de um espaço usando credenciais do usuário (OAuth).
    *
-   * <p>If the space supports threads and the `message` parameter contains a
-   * thread name, the new message is created in the same thread. Otherwise, the
-   * new message is created in a new thread.
-   *
-   * <p>Uses the method
-   * [spaces.messages.create](https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/create)
-   * from the Chat REST API.
-   *
-   * @param {!string} spaceName The resource name of the space.
-   * @param {!chat.chat_v1.Schema$Message} message The message to be created.
-   * @return {Promise<chat.chat_v1.Schema$Message>} The created message.
+   * @param {!string} spaceName Ex: "spaces/AAAA..."
+   * @param {!string} userName  Ex: "users/AAAA..."
+   * @param {{
+   *   maxMessages?: number,
+   *   pageSize?: number,
+   *   filter?: string,
+   *   includeBotMessages?: boolean
+   * }} [opts]
+   * @return {Promise<Message[]>} Mensagens (texto) em ordem cronológica (createTime asc).
    */
-  createMessageInThread: async function (spaceName, message) {
-    const chatClient = await initializeChatClient();
-    const request = {
-      parent: spaceName,
-      messageReplyOption: 'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD',
-      requestBody: message,
-    };
+  listUserMessages: async function (spaceName, userName, opts = {}) {
+    const maxMessages = Number.isFinite(opts.maxMessages) ? opts.maxMessages : 2000;
+    const pageSizeDefault = Number.isFinite(opts.pageSize) ? opts.pageSize : 1000;
+    const includeBotMessages = Boolean(opts.includeBotMessages);
+    const filter = typeof opts.filter === 'string' ? opts.filter : undefined;
+
+    const chatClient = await initializeChatClientWithUser(userName);
+
+    const out = [];
+    let pageToken = undefined;
+
     try {
-      const response = await chatClient.spaces.messages.create(request);
-      if (response.status !== 200) {
-        console.error('Error calling Chat API CreateMessage: '
-          + response.status + ' - ' + response.statusText);
-        return;
+      while (out.length < maxMessages) {
+        const pageSize = Math.min(pageSizeDefault, maxMessages - out.length);
+
+        const res = await chatClient.spaces.messages.list({
+          parent: spaceName,
+          pageSize,
+          pageToken,
+          filter, // opcional (ex.: 'createTime >= "2026-02-01T00:00:00Z"')
+        });
+
+        const messages = res?.data?.messages || [];
+        for (const m of messages) {
+          // Se você quiser armazenar só texto: (o sample normalmente usa apenas text)
+          const text = (m?.text || '').trim();
+          if (!text) continue;
+
+          // Opcional: ignorar bots no seed do histórico (normalmente é melhor ignorar)
+          if (!includeBotMessages && m?.sender?.type === 'BOT') continue;
+
+          out.push(new Message(m.name, text, m.createTime));
+        }
+
+        pageToken = res?.data?.nextPageToken;
+        if (!pageToken) break;
       }
-      return response.data;
+
+      // Garante ordem cronológica para prompts e consultas.
+      out.sort((a, b) => {
+        const ta = new Date(a.createTime).getTime();
+        const tb = new Date(b.createTime).getTime();
+        return ta - tb;
+      });
+
+      logJson('INFO', {
+        message: 'UserAuthChatService.listUserMessages ok',
+        spaceName,
+        count: out.length,
+        usedFilter: Boolean(filter),
+      });
+
+      return out;
     } catch (err) {
-      console.error(JSON.stringify({
-        message: 'Error calling Chat API CreateMessage.',
-        error: err,
-      }));
+      const details = safeError(err);
+
+      logJson('ERROR', {
+        message: 'UserAuthChatService.listUserMessages failed',
+        spaceName,
+        userName,
+        details,
+      });
+
+      // Se token expirou/invalidou: força re-OAuth (mesmo padrão do seu EventsService)
+      if (isUnauthorized(err) || isInsufficientScopes(err)) {
+        await FirestoreService.removeUserToken(userName);
+        throw new InvalidTokenException('Invalid token');
+      }
+
+      throw err;
     }
   },
-}
+};

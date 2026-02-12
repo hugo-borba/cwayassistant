@@ -1,0 +1,14 @@
+{
+  "files.exclude": {
+    "**/node_modules": false
+  },
+  "search.exclude": {
+    "**/node_modules": true
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.validate.enable": true,
+  "json.validate.enable": true,
+  "files.associations": {
+    "**/node_modules/**": "plaintext"
+  }
+}

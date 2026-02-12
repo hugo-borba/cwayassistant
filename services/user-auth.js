@@ -1,20 +1,4 @@
 /**
- * Copyright 2024 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-/**
  * @fileoverview Utility functions to implement the
  * [OAuth2 authorization flow](https://developers.google.com/identity/protocols/oauth2/web-server)
  * for user credentials.
@@ -29,7 +13,8 @@ const {FirestoreService} = require('./firestore-service');
 const keys = require('../credentials.json').web;
 
 // Define the app's authorization scopes.
-const scopes = ['https://www.googleapis.com/auth/chat.messages.readonly'];
+// NOTE: aligns with your consent screen and also works for Workspace Events message subscriptions.
+const scopes = ['https://www.googleapis.com/auth/chat.messages'];
 
 /**
  * Creates a new OAuth2 client with the configured keys.
@@ -51,7 +36,7 @@ function base64encode(data) {
 
 /** Decodes the provided Base64 JSON string into an object. */
 function base64decode(data) {
-  return JSON.parse(Buffer.from(data, 'base64').toString('ascii'));
+  return JSON.parse(Buffer.from(data, 'base64').toString('utf8'));
 }
 
 /**
@@ -88,23 +73,14 @@ exports.generateAuthUrl = function (userName, configCompleteRedirectUrl) {
 /**
  * Handles an OAuth2 callback request.
  *
- * <p>If the authorization was succesful, it exchanges the received code with
- * the access and refresh tokens and saves them into Firebase to be used when
- * calling the Chat API. Then, it redirects the response to the
- * <code>configCompleteRedirectUrl</code> specified in the authorization URL.
- *
- * <p>If the authorization fails, it just prints an error message to the
- * response.
- *
  * @param {!Object} req An Express-style HTTP request.
  * @param {!Object} res An Express-style HTTP response.
  * @returns {Promise<void>}
  */
 exports.oauth2callback = async function (req, res) {
-  // Handle the OAuth 2.0 server response.
   const q = url.parse(req.url, true).query;
+
   if (q.error) {
-    // An error response e.g. error=access_denied.
     console.error('Error: ' + q.error);
     res.status(403).send('Error: ' + q.error);
     return;
@@ -115,8 +91,6 @@ exports.oauth2callback = async function (req, res) {
     return;
   }
 
-  // Read the state with the userName and configCompleteRedirectUrl from the
-  // state encoded in the URL.
   let state;
   try {
     state = base64decode(q.state);
@@ -126,18 +100,14 @@ exports.oauth2callback = async function (req, res) {
     return;
   }
 
-  // Get access and refresh tokens.
   const oauth2Client = createClient();
   const {tokens} = await oauth2Client.getToken(q.code);
 
-  // Save them to the storage so the app can use them to make API calls.
   if (env.logging) {
     console.log('Saving OAuth2 tokens for user ' + state.userName);
   }
   await FirestoreService.saveUserToken(
     state.userName, tokens.access_token, tokens.refresh_token);
 
-  // Redirect to the URL that tells Google Chat that the configuration is
-  // completed.
   res.redirect(state.configCompleteRedirectUrl);
 }

@@ -1,13 +1,14 @@
 # Configuração do Fork Personalizado - CwayAssistant
 
-## 🎯 Objetivo
+## Objetivo
+
 Este é um fork personalizado do repositório `googleworkspace/add-ons-samples` para uso customizado na sua empresa. A configuração permite que você controle manualmente quais updates do repositório original deseja integrar.
 
-## 📡 Configuração de Remotes
+## Configuração de Remotes
 
 ### Remotes Configurados
 
-```bash
+```
 origin   → https://github.com/hugo-borba/cwayassistant.git (seu fork)
 upstream → https://github.com/googleworkspace/add-ons-samples.git (original)
 ```
@@ -16,9 +17,9 @@ upstream → https://github.com/googleworkspace/add-ons-samples.git (original)
 - `origin`: Seu repositório pessoal - para fazer push de suas mudanças
 - `upstream`: Repositório original - de onde você pode puxar updates com cuidado
 
-## 🔄 Workflow de Sincronização Controlada
+## Workflow de Sincronização Controlada
 
-### 1️⃣ **Verificar Novos Commits no Original**
+### 1. Verificar Novos Commits no Original
 
 ```bash
 # Atualizar informações do upstream sem mergear
@@ -32,7 +33,7 @@ git log --oneline origin/main..upstream/main
 # Mostra commits novos no upstream que você não tem
 ```
 
-### 2️⃣ **Avaliar se Commits Interessam**
+### 2. Avaliar se Commits Interessam
 
 Você pode ver em detalhes um commit específico:
 
@@ -44,9 +45,10 @@ git show <commit-hash>
 git show <commit-hash>:<caminho-do-arquivo>
 ```
 
-### 3️⃣ **Integrar Commits Específicos (Recomendado)**
+### 3. Integrar Commits Específicos (Recomendado)
 
 **Opção A: Cherry-pick (pegar commits específicos)**
+
 ```bash
 # Pegar um commit específico do upstream
 git cherry-pick <commit-hash>
@@ -56,12 +58,13 @@ git cherry-pick <commit1-hash> <commit2-hash> <commit3-hash>
 ```
 
 **Opção B: Merge seletivo (se vários commits relacionados)**
+
 ```bash
 # Mergear uma branch específica do upstream
 git merge upstream/<branch-name> --no-ff
 ```
 
-### 4️⃣ **Resolver Conflitos (se houver)**
+### 4. Resolver Conflitos (se houver)
 
 Se houver conflitos durante o cherry-pick/merge:
 
@@ -80,7 +83,7 @@ git cherry-pick --continue
 git cherry-pick --abort
 ```
 
-### 5️⃣ **Enviar para Seu Fork**
+### 5. Enviar para Seu Fork
 
 ```bash
 # Fazer push das mudanças
@@ -90,7 +93,7 @@ git push origin main
 git push origin main --force-with-lease
 ```
 
-## 📋 Checklist para Integrar Updates
+## Checklist para Integrar Updates
 
 Antes de integrar um commit do upstream, pergunte-se:
 
@@ -100,16 +103,17 @@ Antes de integrar um commit do upstream, pergunte-se:
 - [ ] Adiciona valor ao projeto?
 - [ ] Está documentado o porquê da integração?
 
-## 🚫 Commits NÃO Recomendados para Integrar
+## Commits NÃO Recomendados para Integrar
 
-- ❌ Commits que removem/reorganizam estruturas core do ai-knowledge-assistant
-- ❌ Commits que adicionam projetos novos não relevantes
-- ❌ Commits de documentação do repo original
-- ❌ Commits de CI/CD não compatíveis
+- Commits que removem/reorganizam estruturas core do ai-knowledge-assistant
+- Commits que adicionam projetos novos não relevantes
+- Commits de documentação do repo original
+- Commits de CI/CD não compatíveis
 
-## 🛡️ Dicas de Segurança
+## Dicas de Segurança
 
 1. **Sempre faça em uma branch temporária primeiro:**
+
    ```bash
    git checkout -b test-upstream
    git cherry-pick <commit-hash>
@@ -120,16 +124,18 @@ Antes de integrar um commit do upstream, pergunte-se:
    ```
 
 2. **Mantenha backup local:**
+
    ```bash
    git branch backup-main  # Antes de grandes merges
    ```
 
 3. **Documente integrações:**
+
    ```bash
    git commit --allow-empty -m "chore: integrated upstream commit <hash> - <razão>"
    ```
 
-## 📊 Exemplo Prático
+## Exemplo Prático
 
 ```bash
 # 1. Buscar novos commits
@@ -155,13 +161,13 @@ git revert abc1234
 git push origin main
 ```
 
-## 🔗 Links Úteis
+## Links Úteis
 
 - [Git Cherry-pick Docs](https://git-scm.com/docs/git-cherry-pick)
 - [Git Merge Docs](https://git-scm.com/docs/git-merge)
 - [Forking Workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/forking-workflow)
 
-## ❓ Dúvidas Comuns
+## Dúvidas Comuns
 
 **P: Posso fazer merge automático do upstream?**  
 R: Não é recomendado. Use cherry-pick para ter controle total.

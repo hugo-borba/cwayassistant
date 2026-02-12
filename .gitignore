@@ -1,27 +1,2 @@
-# Dependências Node.js
 node_modules/
-
-# Credenciais sensíveis
 credentials.json
-
-# Ambiente local
-.env
-.env.local
-
-# Arquivos de build
-dist/
-build/
-
-# Logs
-*.log
-npm-debug.log*
-
-# Sistema operacional
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
