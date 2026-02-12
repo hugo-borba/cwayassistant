@@ -1,0 +1,213 @@
+# Documentation Guidelines
+
+## JSDoc Standards
+
+### Function Documentation
+
+- Document all public functions and methods
+- Include description of what the function does
+- Document all parameters with types
+- Document return value with type
+- Document exceptions that can be thrown
+- Include usage examples for complex functions
+
+**Example:**
+```javascript
+/**
+ * Calculates the total price including tax
+ * @param {Array<{price: number, quantity: number}>} items - Array of items
+ * @param {number} taxRate - Tax rate as decimal (e.g., 0.1 for 10%)
+ * @returns {number} Total price including tax
+ * @throws {Error} If items is not an array or contains invalid data
+ * @example
+ * const total = calculateTotal([{price: 10, quantity: 2}], 0.1);
+ * // Returns 22
+ */
+function calculateTotal(items, taxRate) {
+  // implementation
+}
+```
+
+### Class Documentation
+
+- Document class purpose and responsibility
+- Document constructor parameters
+- Document all public methods
+- Document public properties
+- Include usage examples
+
+**Example:**
+```javascript
+/**
+ * Service for managing user authentication
+ * @class
+ */
+class AuthService {
+  /**
+   * Creates an instance of AuthService
+   * @param {Object} config - Configuration object
+   * @param {string} config.secret - JWT secret key
+   * @param {number} config.expiresIn - Token expiration in seconds
+   */
+  constructor(config) {
+    // implementation
+  }
+
+  /**
+   * Authenticates user and returns JWT token
+   * @param {string} username - User's username
+   * @param {string} password - User's password
+   * @returns {Promise<string>} JWT token
+   * @throws {Error} If authentication fails
+   */
+  async authenticate(username, password) {
+    // implementation
+  }
+}
+```
+
+### Type Definitions
+
+- Use JSDoc @typedef for custom types
+- Document object structures
+- Use @property for object properties
+- Reuse types across documentation
+
+**Example:**
+```javascript
+/**
+ * @typedef {Object} UserProfile
+ * @property {number} id - User ID
+ * @property {string} username - Username
+ * @property {string} email - User email
+ * @property {Date} createdAt - Account creation date
+ */
+
+/**
+ * Retrieves user profile by ID
+ * @param {number} userId - User ID
+ * @returns {Promise<UserProfile>} User profile
+ */
+async function getUserProfile(userId) {
+  // implementation
+}
+```
+
+## Inline Comments
+
+### When to Comment
+
+- Complex algorithms or business logic
+- Non-obvious workarounds or hacks
+- Performance optimizations
+- Integration with external systems
+- Security considerations
+- TODO items and technical debt
+
+### What NOT to Comment
+
+- Obvious code (e.g., "increment counter")
+- Redundant descriptions of what code does
+- Commented-out code (delete it, use version control)
+- Personal notes or debugging info
+
+### Comment Style
+
+- Write comments that explain WHY, not WHAT
+- Keep comments concise and clear
+- Update comments when code changes
+- Use TODO, FIXME, HACK, NOTE prefixes appropriately
+- Use proper grammar and punctuation
+
+**Examples:**
+```javascript
+// Good: Explains WHY
+// Use exponential backoff to avoid overwhelming the API during retries
+await retryWithBackoff(() => apiCall());
+
+// Bad: Explains WHAT (obvious from code)
+// Call the API
+await apiCall();
+
+// Good: Documents workaround
+// Workaround for API bug #1234: endpoint returns 200 with error in body
+if (response.body.error) {
+  throw new Error(response.body.error);
+}
+
+// TODO: Refactor this to use async/await instead of callbacks
+```
+
+## README Documentation
+
+### Required Sections
+
+1. **Project Title and Description**
+   - Clear, concise description
+   - Key features and capabilities
+
+2. **Architecture Overview**
+   - Directory structure with descriptions
+   - System architecture diagram (Mermaid)
+   - Data flow diagram
+
+3. **Getting Started**
+   - Prerequisites
+   - Installation instructions
+   - Configuration steps
+   - Environment variables
+
+4. **Usage**
+   - How to run locally
+   - How to run tests
+   - How to lint/format
+   - How to deploy
+
+5. **API Documentation**
+   - Endpoints and methods
+   - Request/response examples
+   - Authentication requirements
+
+6. **Contributing**
+   - Code style guidelines
+   - Testing requirements
+   - Pull request process
+
+7. **License and Credits**
+   - License information
+   - Contributors
+   - Third-party attributions
+
+### Living Documentation
+
+- Update README when structure changes
+- Update README when features are added/removed
+- Keep diagrams in sync with actual architecture
+- Version documentation with code
+- Include "Last Updated" date
+
+## Architecture Decision Records (ADRs)
+
+### ADR Structure
+
+1. **Status**: Proposed, Accepted, Deprecated, Superseded
+2. **Context**: Problem being solved, constraints, requirements
+3. **Decision**: What was decided and why
+4. **Consequences**: Positive and negative outcomes, trade-offs
+
+### When to Create ADRs
+
+- Significant architectural changes
+- Technology stack decisions
+- Design pattern adoptions
+- Performance vs maintainability trade-offs
+- Security design decisions
+
+### ADR Best Practices
+
+- Keep ADRs concise (1-2 pages)
+- Use clear, non-technical language where possible
+- Include alternatives considered
+- Document decision date
+- Number ADRs sequentially (0001, 0002, etc.)
+- Store ADRs in `/docs/adr/` directory

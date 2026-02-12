@@ -1,0 +1,586 @@
+<!-- Quality Standards Enforced: B (Testing) -->
+<!-- Template Base: Testing/Mocha (adapted from Jest) -->
+<!-- Last Updated: 2026-02-12 -->
+
+# Testing Rules
+
+## Standards Enforced
+
+- **B. Testing**: Coverage ≥70% overall, ≥90% services, Mocha structure, mocking strategy, async handling
+
+## Test Coverage Requirements
+
+### Minimum Coverage Targets
+- **Overall:** ≥70% code coverage
+- **Services Layer:** ≥90% code coverage (critical business logic)
+- **Controllers:** ≥80% code coverage (HTTP/Events handlers)
+- **Models:** ≥80% code coverage (domain logic)
+- **Utils:** ≥90% code coverage (shared utilities)
+
+### Coverage Tool
+- Use `nyc` (Istanbul) for coverage reporting
+- Add to package.json:
+  ```json
+  {
+    "scripts": {
+      "test": "mocha -p -j 2 -t 5s \"test/**/*.test.js\"",
+      "test:coverage": "nyc npm test"
+    }
+  }
+  ```
+
+## Mocha Test Structure
+
+### File Organization
+- Mirror source structure in `test/` directory
+- Name test files with `.test.js` suffix
+- Example:
+  ```
+  services/user-auth-service.js  →  test/services/user-auth-service.test.js
+  controllers/app.js             →  test/controllers/app.test.js
+  model/message.js               →  test/model/message.test.js
+  ```
+
+### Test Hierarchy
+```javascript
+describe('ServiceName or ModuleName', () => {
+  // Suite-wide setup (run once)
+  before(() => {
+    // Initialize test fixtures if needed
+  });
+
+  // Suite-wide cleanup (run once)
+  after(() => {
+    // Clean up resources
+  });
+
+  describe('methodName or functionality', () => {
+    // Test-specific setup (run before each test)
+    beforeEach(() => {
+      // Reset mocks, create fresh instances
+    });
+
+    // Test-specific cleanup (run after each test)
+    afterEach(() => {
+      // Restore stubs, clear state
+      sinon.restore();
+    });
+
+    it('should [expected behavior] when [condition]', async () => {
+      // Arrange: Setup test data and mocks
+      // Act: Execute the code under test
+      // Assert: Verify expected outcomes
+    });
+
+    it('should handle [error case] when [condition]', async () => {
+      // Test error paths
+    });
+  });
+
+  describe('anotherMethod', () => {
+    // Another set of tests
+  });
+});
+```
+
+### Test Naming Convention
+- Use **"should [expected behavior] when [condition]"** format
+- Be specific and descriptive
+- Test name should make failure obvious
+
+```javascript
+// Good
+it('should return user data when user ID exists', async () => { ... });
+it('should throw error when user ID is invalid', async () => { ... });
+it('should cache result for 5 minutes when query succeeds', async () => { ... });
+
+// Bad
+it('test getUserData', async () => { ... }); // Not descriptive
+it('works', async () => { ... }); // Too vague
+it('should not fail', async () => { ... }); // Describes what it doesn't do
+```
+
+## Mocking and Stubbing
+
+### Use proxyquire for Module Mocking
+- Mock entire modules before import
+- Replace dependencies with test doubles
+
+```javascript
+const proxyquire = require('proxyquire');
+const sinon = require('sinon');
+
+describe('UserService', () => {
+  let service;
+  let mockFirestore;
+  let mockAuthClient;
+
+  beforeEach(() => {
+    // Create mocks
+    mockFirestore = {
+      collection: sinon.stub().returns({
+        doc: sinon.stub().returns({
+          get: sinon.stub().resolves({ exists: true, data: () => ({ name: 'Alice' }) })
+        })
+      })
+    };
+
+    mockAuthClient = {
+      validateToken: sinon.stub().resolves(true)
+    };
+
+    // Load service with mocked dependencies
+    const { UserService } = proxyquire('../../services/user-service', {
+      '@google-cloud/firestore': { Firestore: () => mockFirestore },
+      './auth-client': mockAuthClient
+    });
+
+    service = new UserService();
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('should fetch user data when user exists', async () => {
+    const result = await service.getUser('user123');
+    expect(result.name).to.equal('Alice');
+    expect(mockFirestore.collection).to.have.been.calledWith('users');
+  });
+});
+```
+
+### Use Sinon for Stubs and Spies
+- **Stub** methods to control return values
+- **Spy** on methods to verify calls
+- **Mock** objects for complex verification
+
+```javascript
+const sinon = require('sinon');
+const { expect } = require('chai');
+
+describe('MessageProcessor', () => {
+  let processor;
+  let apiClientStub;
+
+  beforeEach(() => {
+    apiClientStub = {
+      sendMessage: sinon.stub().resolves({ success: true }),
+      logEvent: sinon.spy()
+    };
+    processor = new MessageProcessor(apiClientStub);
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('should send message and log event', async () => {
+    await processor.process('Hello');
+    
+    // Verify stub was called
+    expect(apiClientStub.sendMessage).to.have.been.calledOnce;
+    expect(apiClientStub.sendMessage).to.have.been.calledWith('Hello');
+    
+    // Verify spy was called
+    expect(apiClientStub.logEvent).to.have.been.called;
+  });
+});
+```
+
+### Never Make Real API Calls
+- **Always mock** external dependencies:
+  - Firestore
+  - Google Chat API
+  - Vertex AI
+  - Workspace Events API
+  - Pub/Sub
+  - Any HTTP requests
+
+```javascript
+// NEVER do this in tests
+it('should fetch real data', async () => {
+  const firestore = new Firestore(); // Real Firestore instance!
+  const result = await firestore.collection('users').doc('123').get();
+  // ...
+});
+
+// ALWAYS do this
+it('should fetch data', async () => {
+  const mockFirestore = {
+    collection: sinon.stub().returns({
+      doc: sinon.stub().returns({
+        get: sinon.stub().resolves({ data: () => mockData })
+      })
+    })
+  };
+  // Use mockFirestore in test
+});
+```
+
+## Async Testing
+
+### Use async/await in Tests
+- Declare test functions as `async`
+- Use `await` for async operations
+- Mocha automatically handles returned promises
+
+```javascript
+it('should fetch user data', async () => {
+  const result = await service.getUser('user123');
+  expect(result).to.deep.equal(expectedData);
+});
+```
+
+### Handling Promises
+- Let Mocha handle promise resolution (return promise OR use async/await)
+- Don't use `done` callback unless absolutely necessary (prefer promises)
+
+```javascript
+// Good: async/await
+it('should process data', async () => {
+  const result = await processData();
+  expect(result).to.exist;
+});
+
+// Good: return promise
+it('should process data', () => {
+  return processData().then(result => {
+    expect(result).to.exist;
+  });
+});
+
+// Avoid: done callback (only for event emitters or non-promise async)
+it('should emit event', (done) => {
+  emitter.on('data', (data) => {
+    expect(data).to.exist;
+    done();
+  });
+  emitter.emit('data', { value: 123 });
+});
+```
+
+### Timeout Configuration
+- Default Mocha timeout: 2000ms
+- Set longer timeouts for slow operations
+- Configure globally or per-test
+
+```javascript
+// Global timeout in package.json
+{
+  "scripts": {
+    "test": "mocha -t 5s test/**/*.test.js"
+  }
+}
+
+// Per-suite timeout
+describe('SlowOperations', function() {
+  this.timeout(10000); // 10 seconds
+
+  it('should complete slow operation', async () => {
+    // ...
+  });
+});
+
+// Per-test timeout
+it('should complete very slow operation', async function() {
+  this.timeout(15000); // 15 seconds
+  // ...
+});
+```
+
+## Chai Assertions
+
+### Assertion Styles
+Use Chai's `expect` style (BDD):
+
+```javascript
+const { expect } = require('chai');
+
+// Equality
+expect(actual).to.equal(expected);              // Strict equality (===)
+expect(actual).to.deep.equal(expected);         // Deep equality (objects/arrays)
+expect(actual).to.eql(expected);                // Alias for deep.equal
+
+// Existence
+expect(value).to.exist;                         // Not null/undefined
+expect(value).to.not.exist;                     // Null or undefined
+expect(value).to.be.null;
+expect(value).to.be.undefined;
+
+// Types
+expect(value).to.be.a('string');
+expect(value).to.be.an('array');
+expect(value).to.be.an.instanceof(Error);
+
+// Booleans
+expect(value).to.be.true;
+expect(value).to.be.false;
+expect(value).to.be.ok;                         // Truthy
+expect(value).to.not.be.ok;                     // Falsy
+
+// Numbers
+expect(value).to.be.above(10);
+expect(value).to.be.below(100);
+expect(value).to.be.within(10, 100);
+
+// Strings
+expect(string).to.include('substring');
+expect(string).to.match(/regex/);
+expect(string).to.have.lengthOf(10);
+
+// Arrays
+expect(array).to.have.lengthOf(3);
+expect(array).to.include(item);
+expect(array).to.deep.include({ prop: 'value' });
+expect(array).to.be.empty;
+
+// Objects
+expect(obj).to.have.property('key');
+expect(obj).to.have.property('key', 'value');
+expect(obj).to.have.all.keys('key1', 'key2');
+expect(obj).to.deep.equal({ key: 'value' });
+
+// Promises
+await expect(promise).to.be.fulfilled;
+await expect(promise).to.be.rejected;
+await expect(promise).to.be.rejectedWith(Error);
+await expect(promise).to.be.rejectedWith('Error message');
+
+// Functions
+expect(fn).to.throw();
+expect(fn).to.throw(Error);
+expect(fn).to.throw('Error message');
+expect(() => fn()).to.throw();
+```
+
+### Sinon Matchers with Chai
+Use `sinon-chai` for better assertion syntax:
+
+```javascript
+const sinon = require('sinon');
+const chai = require('chai');
+const sinonChai = require('sinon-chai');
+chai.use(sinonChai);
+
+const { expect } = chai;
+
+it('should call function with correct arguments', () => {
+  const stub = sinon.stub();
+  callFunction(stub, 'arg1', 'arg2');
+  
+  expect(stub).to.have.been.called;
+  expect(stub).to.have.been.calledOnce;
+  expect(stub).to.have.been.calledTwice;
+  expect(stub).to.have.been.calledWith('arg1', 'arg2');
+  expect(stub).to.have.been.calledBefore(otherStub);
+  expect(stub).to.have.been.calledAfter(otherStub);
+});
+```
+
+## Test Organization Patterns
+
+### Arrange-Act-Assert (AAA)
+Structure every test clearly:
+
+```javascript
+it('should calculate total with tax', () => {
+  // Arrange: Set up test data and mocks
+  const items = [{ price: 10, quantity: 2 }];
+  const taxRate = 0.1;
+  
+  // Act: Execute the code under test
+  const result = calculateTotal(items, taxRate);
+  
+  // Assert: Verify expected outcomes
+  expect(result).to.equal(22);
+});
+```
+
+### Test Data Fixtures
+Extract reusable test data to fixtures:
+
+```javascript
+// test/fixtures/users.js
+module.exports = {
+  validUser: {
+    id: 'user123',
+    name: 'Alice',
+    email: 'alice@example.com',
+    isActive: true
+  },
+  inactiveUser: {
+    id: 'user456',
+    name: 'Bob',
+    email: 'bob@example.com',
+    isActive: false
+  }
+};
+
+// test/services/user-service.test.js
+const fixtures = require('../fixtures/users');
+
+it('should process active user', async () => {
+  mockFirestore.returns(fixtures.validUser);
+  const result = await service.processUser('user123');
+  // ...
+});
+```
+
+### Shared Setup Functions
+Extract common setup logic:
+
+```javascript
+describe('UserService', () => {
+  function createMockFirestore(userData) {
+    return {
+      collection: sinon.stub().returns({
+        doc: sinon.stub().returns({
+          get: sinon.stub().resolves({ exists: true, data: () => userData })
+        })
+      })
+    };
+  }
+
+  it('should fetch user', async () => {
+    const mockFirestore = createMockFirestore({ name: 'Alice' });
+    // Use mock in test
+  });
+});
+```
+
+## Testing Edge Cases
+
+### Always Test
+1. **Happy path**: Normal, expected inputs
+2. **Error paths**: Invalid inputs, failures
+3. **Edge cases**: Null, undefined, empty, boundaries
+4. **Async errors**: Promise rejections, timeouts
+
+```javascript
+describe('validateEmail', () => {
+  it('should return true for valid email', () => {
+    expect(validateEmail('test@example.com')).to.be.true;
+  });
+
+  it('should return false for invalid email', () => {
+    expect(validateEmail('invalid')).to.be.false;
+  });
+
+  it('should return false for null input', () => {
+    expect(validateEmail(null)).to.be.false;
+  });
+
+  it('should return false for undefined input', () => {
+    expect(validateEmail(undefined)).to.be.false;
+  });
+
+  it('should return false for empty string', () => {
+    expect(validateEmail('')).to.be.false;
+  });
+
+  it('should handle edge case emails', () => {
+    expect(validateEmail('test+tag@example.com')).to.be.true;
+    expect(validateEmail('user@subdomain.example.com')).to.be.true;
+  });
+});
+```
+
+## Supertest for HTTP Function Testing
+
+### Testing Express/Cloud Functions HTTP Handlers
+Use `supertest` to test HTTP endpoints:
+
+```javascript
+const request = require('supertest');
+const sinon = require('sinon');
+const proxyquire = require('proxyquire');
+
+describe('HTTP Function: handleMessage', () => {
+  let app;
+  let mockService;
+
+  beforeEach(() => {
+    mockService = {
+      processMessage: sinon.stub().resolves({ response: 'Hello' })
+    };
+
+    // Load HTTP handler with mocked services
+    const handler = proxyquire('../../http_index', {
+      './services/message-service': mockService
+    });
+
+    app = handler.app; // Express app instance
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('should return 200 with response when message is valid', async () => {
+    const response = await request(app)
+      .post('/message')
+      .send({ message: { text: 'Hello' } })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body.response).to.equal('Hello');
+    expect(mockService.processMessage).to.have.been.calledOnce;
+  });
+
+  it('should return 400 when message is missing', async () => {
+    await request(app)
+      .post('/message')
+      .send({})
+      .expect(400);
+  });
+
+  it('should return 500 when service throws error', async () => {
+    mockService.processMessage.rejects(new Error('Service error'));
+
+    await request(app)
+      .post('/message')
+      .send({ message: { text: 'Hello' } })
+      .expect(500);
+  });
+});
+```
+
+## Best Practices
+
+### Independent Tests
+- Tests should not depend on each other
+- Tests should not share mutable state
+- Tests should pass in any order
+
+### Fast Tests
+- Target: <5 seconds total suite time
+- Mock all external services
+- Avoid unnecessary setup/teardown
+- Use `only()` to run single test during development: `it.only('test', () => {})`
+
+### Clear Failure Messages
+- Use descriptive test names
+- Add custom assertion messages when helpful:
+  ```javascript
+  expect(result, 'User data should be returned').to.exist;
+  ```
+
+### Avoid Implementation Details
+- Test behavior, not implementation
+- Don't test private methods directly
+- Don't over-specify mocks (only mock what's necessary)
+
+```javascript
+// Bad: Over-specific mock (brittle test)
+mockService.method.calledWith(sinon.match({ prop1: 'exact', prop2: 123, prop3: anything }));
+
+// Good: Test behavior (resilient to refactoring)
+expect(result.success).to.be.true;
+expect(mockService.method).to.have.been.called;
+```
+
+### Clean Up Resources
+- Always restore Sinon stubs in `afterEach`
+- Close connections, clear timers
+- Use `afterEach(() => sinon.restore())` consistently

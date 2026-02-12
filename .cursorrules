@@ -1,0 +1,407 @@
+# Cursor Rules for cwayassistant
+
+Google Chat AI Knowledge Assistant - Node.js 22 + Google Cloud Functions gen2
+
+## Project Facts
+
+- **Runtime:** Node.js 22 (LTS)
+- **Platform:** Google Cloud Functions gen2 (HTTP + Events triggers)
+- **Architecture:** Controllers/services/model pattern
+- **APIs:** Google Chat API, Workspace Events API, Firestore, Vertex AI (Gemini)
+- **Testing:** Mocha + Supertest + Sinon
+- **Quality Tooling:** ESLint 9.x + Prettier 3.x + JSDoc checkJs
+- **Package Manager:** npm
+- **Deployment:** gcloud CLI via deploy.sh script
+
+## Definition of Done
+
+Before considering any task complete, ensure:
+
+**Code Quality:**
+- [ ] Code passes ESLint with 0 errors: `npm run lint`
+- [ ] Code passes Prettier formatting: `npm run format:check`
+- [ ] JSDoc comments on 100% of public functions with @param, @returns, @throws
+- [ ] No unused variables or dead code
+- [ ] Async/await used consistently with proper error handling
+
+**Testing:**
+- [ ] All existing tests still pass: `npm test`
+- [ ] New tests added for new functionality
+- [ ] Test coverage ≥70% overall, ≥90% in services/
+- [ ] Mocha describe/it structure maintained
+- [ ] External dependencies mocked (Firestore, Chat API, Vertex AI, Pub/Sub)
+
+**Architecture:**
+- [ ] Controllers/services/model separation respected
+- [ ] HTTP/Events handlers in controllers/ (no business logic)
+- [ ] Business logic in services/ (no HTTP handling)
+- [ ] Domain entities in model/
+- [ ] Dependency injection used in services
+
+**Documentation:**
+- [ ] README.md updated if file structure changed
+- [ ] README.md Mermaid flowchart updated if logical flow changed
+- [ ] package.json updated if dependencies changed
+- [ ] Inline comments added for complex logic (explain WHY, not WHAT)
+- [ ] ADR created for significant architectural decisions
+
+**Security:**
+- [ ] No hardcoded secrets or credentials (use process.env or Secret Manager)
+- [ ] credentials.json not committed (verify with `git check-ignore credentials.json`)
+- [ ] OAuth2 tokens never logged or exposed in errors
+- [ ] All external inputs validated and sanitized
+
+**Google Cloud Functions:**
+- [ ] Cold start optimization considered (global variable reuse)
+- [ ] Proper HTTP status codes used (200, 201, 400, 401, 404, 500)
+- [ ] Structured JSON logging for Cloud Logging
+- [ ] Timeouts configured appropriately
+- [ ] Error handling with graceful degradation
+
+**Git Workflow:**
+- [ ] Commit message follows Conventional Commits format (feat:, fix:, docs:, etc.)
+- [ ] Branch named appropriately (feature/*, bugfix/*, hotfix/*)
+- [ ] PR description includes summary, testing notes, and checklist
+- [ ] Quality gates passed before merge: `npm run lint && npm run typecheck && npm test`
+
+## General Development Principles
+
+### Modularity and DRY
+- Prioritize modularity, DRY (Don't Repeat Yourself), performance, and security
+- Break tasks into distinct prioritized steps before implementation
+- Extract common logic into utilities rather than copying code
+- Keep modules focused on single responsibility
+
+### Code Style
+- Use ES module syntax (import/export) for new code; CommonJS (require) accepted for existing
+- Use const and let; never var
+- Prefer async/await over raw promises
+- Use arrow functions for callbacks
+- Use template literals for string interpolation
+- Use destructuring for object/array access
+- Use single quotes for strings (enforced by Prettier)
+- Use semicolons (enforced by Prettier)
+- Use 2-space indentation (enforced by Prettier)
+
+### Error Handling
+- Always validate inputs at function boundaries
+- Throw descriptive errors with context: `throw new Error(\`Invalid input: \${input}\`)`
+- Use try/catch blocks around async operations
+- Never leave promises unhandled
+- Log errors with structured logging: `console.error({ error, requestId, context })`
+- Return appropriate HTTP status codes in API responses
+
+### Comments and Documentation
+- Write comments that explain WHY, not WHAT
+- JSDoc required for all public functions (params, returns, throws, examples)
+- Use TODO: for technical debt items
+- Use FIXME: for bugs that need fixing
+- Use HACK: or WORKAROUND: for non-ideal solutions with explanation
+- Keep README.md repo tree and flowchart up-to-date
+
+## Google Cloud Functions Patterns
+
+### HTTP Functions
+- Use Express.js-style middleware pattern
+- Validate request body/query/params early
+- Return JSON responses with proper status codes
+- Handle CORS appropriately for client-facing endpoints
+- Structure: `(req, res) => { ... res.status(200).json({...}); }`
+
+### Event Functions
+- Extract event data from `event.data`
+- Validate CloudEvents structure
+- Implement idempotency (handle duplicate events)
+- Log event IDs for traceability
+- Structure: `(event) => { const data = event.data; ... }`
+
+### Cold Start Optimization
+- Initialize expensive resources outside function handler (global scope)
+- Reuse connections: Firestore client, API clients
+- Minimize function bundle size
+- Use lazy loading for optional features
+
+### Deployment
+- Always use gen2: `--gen2`
+- Specify runtime explicitly: `--runtime=nodejs22`
+- Set appropriate timeout: `--timeout=60s` (default) or up to 540s
+- Configure memory: `--memory=512MB` to 2GB
+- Use environment variables for configuration: `--set-env-vars`
+
+## Testing with Mocha
+
+### Structure
+- Use `describe` blocks to group related tests
+- Use `it` blocks for individual test cases
+- Name tests: "should [expected behavior] when [condition]"
+- Keep test files in test/ directory parallel to source files
+
+### Setup and Teardown
+- Use `beforeEach` for test-specific setup
+- Use `afterEach` for cleanup (clear mocks, restore stubs)
+- Always restore Sinon mocks: `sinon.restore()` in afterEach
+
+### Mocking
+- Use proxyquire for module-level mocking
+- Use Sinon for stubs, spies, mocks
+- Mock ALL external dependencies (never real API calls)
+- Example:
+  ```javascript
+  const mockFirestore = { collection: sinon.stub() };
+  const service = proxyquire('../services/my-service', {
+    '@google-cloud/firestore': { Firestore: () => mockFirestore }
+  });
+  ```
+
+### Assertions
+- Use Chai assertions: `expect(result).to.equal(expected)`
+- Test both success and error paths
+- Include edge cases (null, undefined, empty, invalid input)
+- Aim for ≥70% coverage overall, ≥90% in services/
+
+## API Development Patterns
+
+### RESTful Principles
+- GET: Retrieve resources (idempotent, cacheable)
+- POST: Create new resources (201 Created on success)
+- PUT: Replace entire resource (200 OK on success)
+- PATCH: Partial update (200 OK on success)
+- DELETE: Remove resource (204 No Content on success)
+
+### Status Codes
+- 200 OK: Successful GET, PUT, PATCH
+- 201 Created: Successful POST
+- 204 No Content: Successful DELETE
+- 400 Bad Request: Invalid input/validation error
+- 401 Unauthorized: Missing or invalid authentication
+- 403 Forbidden: Authenticated but not authorized
+- 404 Not Found: Resource doesn't exist
+- 500 Internal Server Error: Unexpected server error
+
+### Error Responses
+- Use consistent error format:
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "Human-readable message",
+      "details": ["Field 'email' is required"]
+    }
+  }
+  ```
+- Log errors with context (request ID, user ID, timestamp)
+- Don't expose internal error details to clients
+
+### Authentication
+- Validate OAuth2 tokens on every protected endpoint
+- Use JWT for stateless authentication where applicable
+- Never log or expose tokens
+- Implement role-based access control (RBAC)
+
+## Security Standards
+
+### Secrets Management
+- Use environment variables: `process.env.VARIABLE_NAME`
+- Use Google Secret Manager for sensitive values
+- NEVER hardcode: API keys, passwords, tokens, credentials
+- Keep credentials.json in .gitignore
+- Use credentials.json.template as guide without actual secrets
+
+### OAuth2 Flows (cwayassistant-specific)
+- Dual authentication: user OAuth2 + app-level auth
+- User OAuth: for Chat API requests on behalf of users
+- App OAuth: for Events API subscriptions and admin operations
+- Store tokens in Firestore with encryption
+- Implement token refresh logic
+- Handle authentication failures gracefully
+
+### Input Validation
+- Validate all external inputs (req.body, req.query, req.params, event.data)
+- Sanitize inputs before using in queries or responses
+- Use type checking and schema validation
+- Reject unexpected fields
+
+### Dependencies
+- Run `npm audit` regularly
+- Keep dependencies updated (minor/patch versions)
+- Review security advisories before updates
+- Document accepted vulnerabilities in ADR if temporary
+
+## Documentation Standards
+
+### JSDoc for Functions
+Required for all public functions:
+```javascript
+/**
+ * Calculates total price including tax
+ * @param {Array<{price: number, quantity: number}>} items - Array of items
+ * @param {number} taxRate - Tax rate as decimal (e.g., 0.1 for 10%)
+ * @returns {Promise<number>} Total price including tax
+ * @throws {Error} If items array is invalid or contains negative values
+ * @example
+ * const total = await calculateTotal([{price: 10, quantity: 2}], 0.1);
+ * // Returns 22
+ */
+async function calculateTotal(items, taxRate) {
+  // implementation
+}
+```
+
+### README.md Maintenance
+- Update repo tree diagram when file structure changes
+- Update Mermaid flowchart when logical flow changes
+- Keep "Rules Provenance" section current
+- Document new environment variables
+- Update deployment instructions if process changes
+
+### Architecture Decision Records (ADRs)
+Create ADR in `/docs/adr/` for:
+- Significant architectural changes
+- Technology stack decisions
+- Design pattern adoptions
+- Security design decisions
+- Performance vs maintainability trade-offs
+
+ADR Format:
+1. Status: Proposed, Accepted, Deprecated, Superseded
+2. Context: Problem, constraints, requirements
+3. Decision: What was decided and why
+4. Consequences: Positive/negative outcomes, trade-offs
+
+## Git Workflow
+
+### Commit Messages (Conventional Commits)
+Format: `<type>[optional scope]: <description>`
+
+Types:
+- **feat**: New feature (MINOR version)
+- **fix**: Bug fix (PATCH version)
+- **docs**: Documentation changes
+- **style**: Code style changes (formatting, no logic change)
+- **refactor**: Code change that neither fixes bug nor adds feature
+- **perf**: Performance improvement
+- **test**: Adding or updating tests
+- **chore**: Maintenance tasks (dependencies, config)
+- **ci**: CI/CD changes
+- **build**: Build system changes
+
+Examples:
+```
+feat(auth): add OAuth2 token refresh mechanism
+fix(api): handle null response from Chat API
+docs: update README with new deployment steps
+refactor(services): extract common Firestore query logic
+```
+
+### Branching
+- **main**: Production-ready code (always stable)
+- **feature/***: New features (e.g., feature/oauth-refresh)
+- **bugfix/***: Bug fixes (e.g., bugfix/null-pointer)
+- **hotfix/***: Urgent production fixes
+- **docs/***: Documentation updates
+
+### Pull Requests
+- Keep PRs small and focused (<400 lines ideal)
+- Include summary, testing notes, screenshots (if UI changes)
+- Link related issues: "Closes #123"
+- Checklist:
+  - [ ] Tests added/updated
+  - [ ] Documentation updated
+  - [ ] No linting errors
+  - [ ] All tests passing
+  - [ ] No merge conflicts
+- Request review from at least one team member
+- Address all review comments before merge
+
+## Rules Provenance
+
+This ruleset is assembled from multiple templates sourced from PatrickJS/awesome-cursorrules and original content:
+
+**Reused Templates:**
+1. **JavaScript/Node.js** (`/rules/es-module-nodejs-guidelines-cursorrules-prompt-fil/`)
+   - Async/await patterns, error handling, ES6+ features
+2. **API/Backend** (`/rules/nodejs-mongodb-cursorrules-prompt-file-tutorial/`)
+   - RESTful principles, HTTP status codes, API design
+3. **Testing/Mocha** (adapted from `/rules/jest-unit-testing-cursorrules-prompt-file/`)
+   - Test structure, mocking patterns, coverage requirements
+4. **Git Workflow** (`/rules/git-conventional-commit-messages/`)
+   - Conventional commits, branching strategy, PR guidelines
+
+**Original Templates (created for this project):**
+1. **Google Cloud Functions** - GCF gen2 patterns, HTTP/Events triggers, cold start optimization
+2. **ESLint + Prettier** - Code quality standards, linting configuration
+3. **Documentation** - JSDoc requirements, README maintenance, ADR format
+4. **Security (cwayassistant-specific)** - Dual OAuth2 flows, credentials management
+5. **Google APIs (cwayassistant-specific)** - Chat API, Workspace Events API, Firestore, Vertex AI integration patterns
+
+**Full provenance details:** See `/.cursor/imports/PROVENANCE.md` for complete template history, modifications, and rationale.
+
+**Domain rules expansion:** See `/.cursor/rules/*.mdc` for detailed, domain-specific rules derived from these templates.
+
+## Living Documentation Rule
+
+**CRITICAL: After every task that modifies files, update:**
+
+1. **README.md** if:
+   - File/folder structure changed (add/remove directories or files)
+   - Logical flow changed (new integration, removed feature)
+   - → Update repo tree diagram with inline descriptions
+   - → Update Mermaid flowchart to reflect new flow
+
+2. **package.json** if:
+   - Dependencies added/removed
+   - npm scripts added/modified
+   - → Maintain consistent pinning policy (`^` for minor compatibility)
+
+3. **/.cursor/rules/*.mdc** if:
+   - New patterns emerge (e.g., new Firestore query pattern)
+   - Quality standards change (e.g., coverage requirement increases)
+   - → Update relevant domain rule file
+   - → Note in PROVENANCE.md if based on new template
+
+4. **/.cursor/imports/PROVENANCE.md** if:
+   - New templates imported from awesome-cursorrules
+   - Existing templates re-imported (version update)
+   - → Add entry with date, template name, and rationale
+
+**In task summary, mention:** "Updated README.md (repo tree), package.json (added X dep), /.cursor/rules/Y.mdc (new pattern Z)"
+
+## When to Ask vs Assume
+
+**ASK before changing:**
+- OAuth2 flows (user vs app auth; dual flows are critical to cwayassistant)
+- Firestore schema (collections, document IDs, indexes)
+- deploy.sh logic (GCF deployment configs, environment variables)
+- credentials.json structure (OAuth2 client configuration)
+- API integration patterns (Chat API, Events API, Vertex AI)
+- Breaking changes to existing APIs or function signatures
+
+**SAFE to assume / proceed:**
+- Code style fixes (ESLint/Prettier enforce standards automatically)
+- Test pattern updates (follow existing Mocha structure in test/)
+- JSDoc additions (100% coverage is standard)
+- Refactoring within services (if tests pass, changes are safe)
+- Adding helper utilities (if doesn't change architecture)
+- Updating inline comments for clarity
+- Fixing linting errors flagged by `npm run lint`
+
+## Quality Standards Enforced
+
+This project enforces 8 quality standard categories:
+
+**A. Code Quality:** Max complexity, naming conventions, no unused vars, async/await patterns
+**B. Testing:** ≥70% coverage overall, ≥90% services, Mocha structure, mocking strategy
+**C. Security:** No hardcoded secrets, OAuth2 best practices, input validation, SAST
+**D. Documentation:** JSDoc 100% public functions, README maintenance, ADR process
+**E. Reliability:** Error handling, retry logic (exponential backoff), timeouts, graceful degradation
+**F. Performance:** Cold start optimization, memory awareness, caching, Firestore indexing
+**G. Maintainability:** Controllers/services/model separation, DRY principle, dependency injection
+**H. Git & Workflow:** Conventional commits, PR reviews, semantic versioning
+
+Full quality framework details in `/.cursor/plans/bootstrap_cursor_rules_node.js_*.plan.md` (Quality Standards Framework section).
+
+---
+
+**Version:** v0.1 (Bootstrap Initial - 2026-02-12)
+**Last Updated:** 2026-02-12
+**Maintained By:** Cursor AI Agent + Team

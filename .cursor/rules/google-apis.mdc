@@ -1,0 +1,582 @@
+<!-- Quality Standards Enforced: E (Reliability) -->
+<!-- Template Base: API/Backend + Original (cwayassistant-specific) -->
+<!-- Last Updated: 2026-02-12 -->
+
+# Google APIs Integration Rules
+
+## Standards Enforced
+
+- **E. Reliability**: Error handling for external APIs, retry logic, timeouts
+
+<!-- ORIGINAL: cwayassistant-specific integration patterns -->
+
+## Overview
+
+cwayassistant integrates with 4 primary Google APIs:
+1. **Google Chat API** - Send/receive messages
+2. **Workspace Events API** - Subscribe to real-time events
+3. **Firestore** - Store messages, spaces, tokens
+4. **Vertex AI (Gemini)** - AI-powered question detection and answering
+
+## Google Chat API
+
+### Authentication
+Two auth modes:
+- **User OAuth2** - Acting on behalf of users (read messages, send as user)
+- **App Auth** - Acting as the app (admin operations)
+
+See `security.mdc` for OAuth2 implementation details.
+
+### Client Setup
+```javascript
+const { google } = require('googleapis');
+
+// User OAuth2 client
+function createUserChatClient(accessToken) {
+  const oauth2Client = new google.auth.OAuth2();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  return google.chat({ version: 'v1', auth: oauth2Client });
+}
+
+// App-level client (service account)
+function createAppChatClient() {
+  const auth = new google.auth.GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/chat.bot']
+  });
+  return google.chat({ version: 'v1', auth });
+}
+```
+
+### Sending Messages
+```javascript
+async function sendMessage(spaceId, text, threadKey = null) {
+  const chat = createUserChatClient(accessToken);
+  
+  const message = {
+    text: text,
+    thread: threadKey ? { name: threadKey } : undefined
+  };
+  
+  try {
+    const response = await chat.spaces.messages.create({
+      parent: spaceId,
+      requestBody: message
+    });
+    
+    console.log({ messageId: response.data.name, spaceId });
+    return response.data;
+  } catch (error) {
+    console.error({ error, spaceId, text });
+    throw new Error(`Failed to send message: ${error.message}`);
+  }
+}
+```
+
+### Listing Messages (History)
+```javascript
+async function listMessages(spaceId, limit = 50) {
+  const chat = createUserChatClient(accessToken);
+  
+  try {
+    const response = await chat.spaces.messages.list({
+      parent: spaceId,
+      pageSize: limit,
+      orderBy: 'createTime desc'
+    });
+    
+    return response.data.messages || [];
+  } catch (error) {
+    console.error({ error, spaceId });
+    throw new Error(`Failed to list messages: ${error.message}`);
+  }
+}
+```
+
+### Error Handling
+Common Chat API errors:
+- **401 Unauthorized** - Invalid/expired token → trigger OAuth2 refresh
+- **403 Forbidden** - Insufficient permissions → log and notify user
+- **404 Not Found** - Space/message doesn't exist → handle gracefully
+- **429 Too Many Requests** - Rate limit → exponential backoff retry
+- **500/503 Service Error** - Transient failure → retry
+
+```javascript
+async function sendMessageWithRetry(spaceId, text) {
+  return retryWithBackoff(async () => {
+    try {
+      return await sendMessage(spaceId, text);
+    } catch (error) {
+      if (error.code === 401) {
+        // Token expired, refresh and retry
+        await refreshAccessToken();
+        return await sendMessage(spaceId, text);
+      }
+      if (error.code === 403) {
+        throw new Error('Insufficient permissions to send message');
+      }
+      throw error; // Other errors bubble up for retry logic
+    }
+  });
+}
+```
+
+## Workspace Events API
+
+### Subscription Creation
+```javascript
+const { google } = require('googleapis');
+
+async function createChatSubscription(spaceId) {
+  const workspaceevents = google.workspaceevents('v1');
+  const auth = new google.auth.GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/chat.bot']
+  });
+  
+  const subscription = {
+    targetResource: `//chat.googleapis.com/spaces/${spaceId}`,
+    eventTypes: [
+      'google.workspace.chat.message.v1.created',
+      'google.workspace.chat.message.v1.updated',
+      'google.workspace.chat.message.v1.deleted'
+    ],
+    notificationEndpoint: {
+      pubsubTopic: `projects/${PROJECT_ID}/topics/${TOPIC_NAME}`
+    },
+    ttl: '2592000s' // 30 days
+  };
+  
+  try {
+    const response = await workspaceevents.subscriptions.create({
+      requestBody: subscription,
+      auth: await auth.getClient()
+    });
+    
+    console.log({ subscriptionId: response.data.name, spaceId });
+    return response.data;
+  } catch (error) {
+    console.error({ error, spaceId });
+    throw new Error(`Failed to create subscription: ${error.message}`);
+  }
+}
+```
+
+### Processing Events
+```javascript
+// In events function (events_index.js)
+exports.eventsApp = async (event) => {
+  const eventType = event.type;
+  const eventData = event.data;
+  
+  console.log({ eventType, eventId: event.id });
+  
+  try {
+    if (eventType === 'google.workspace.chat.message.v1.created') {
+      await handleMessageCreated(eventData);
+    } else if (eventType === 'google.workspace.chat.message.v1.updated') {
+      await handleMessageUpdated(eventData);
+    } else if (eventType === 'google.workspace.chat.message.v1.deleted') {
+      await handleMessageDeleted(eventData);
+    } else if (eventType.includes('subscription')) {
+      // Subscription lifecycle events
+      await handleSubscriptionEvent(eventData);
+    }
+  } catch (error) {
+    console.error({ error, eventType, eventId: event.id });
+    // Don't throw - would trigger Pub/Sub retry
+  }
+};
+```
+
+### Subscription Renewal
+Subscriptions expire after TTL. Implement renewal logic:
+
+```javascript
+async function renewSubscription(subscriptionId) {
+  const workspaceevents = google.workspaceevents('v1');
+  
+  try {
+    const response = await workspaceevents.subscriptions.patch({
+      name: subscriptionId,
+      updateMask: 'ttl',
+      requestBody: {
+        ttl: '2592000s' // 30 days
+      }
+    });
+    
+    console.log({ subscriptionId, renewed: true });
+    return response.data;
+  } catch (error) {
+    console.error({ error, subscriptionId });
+    throw new Error(`Failed to renew subscription: ${error.message}`);
+  }
+}
+
+// Check and renew expiring subscriptions (run periodically)
+async function renewExpiringSubscriptions() {
+  const subscriptions = await listActiveSubscriptions();
+  const now = new Date();
+  const renewalThreshold = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+  
+  for (const sub of subscriptions) {
+    const expiresAt = new Date(sub.expireTime);
+    const timeUntilExpiry = expiresAt - now;
+    
+    if (timeUntilExpiry < renewalThreshold) {
+      await renewSubscription(sub.name);
+    }
+  }
+}
+```
+
+## Firestore
+
+### Client Setup
+```javascript
+const { Firestore } = require('@google-cloud/firestore');
+
+// Initialize globally (reuse connection)
+const firestore = new Firestore({
+  projectId: process.env.PROJECT_ID
+});
+```
+
+### Collections Schema
+```
+spaces/
+  {spaceId}/
+    name: string
+    displayName: string
+    createdAt: timestamp
+    subscriptionId: string
+
+messages/
+  {messageId}/
+    spaceId: string
+    text: string
+    sender: {name: string, type: string}
+    createTime: timestamp
+    threadId: string
+
+tokens/
+  {userId}/
+    accessToken: string (encrypted)
+    refreshToken: string (encrypted)
+    expiresAt: timestamp
+```
+
+### Writing Data
+```javascript
+async function storeMessage(message) {
+  const messageDoc = {
+    spaceId: message.space.name,
+    text: message.text,
+    sender: message.sender,
+    createTime: new Date(message.createTime),
+    threadId: message.thread?.name || null
+  };
+  
+  try {
+    await firestore
+      .collection('messages')
+      .doc(message.name)
+      .set(messageDoc);
+    
+    console.log({ messageId: message.name, stored: true });
+  } catch (error) {
+    console.error({ error, messageId: message.name });
+    throw new Error(`Failed to store message: ${error.message}`);
+  }
+}
+```
+
+### Reading Data
+```javascript
+async function getSpaceMessages(spaceId, limit = 50) {
+  try {
+    const snapshot = await firestore
+      .collection('messages')
+      .where('spaceId', '==', spaceId)
+      .orderBy('createTime', 'desc')
+      .limit(limit)
+      .get();
+    
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error({ error, spaceId });
+    throw new Error(`Failed to get messages: ${error.message}`);
+  }
+}
+```
+
+### Transactions
+Use transactions for atomic updates:
+
+```javascript
+async function incrementMessageCount(spaceId) {
+  const spaceRef = firestore.collection('spaces').doc(spaceId);
+  
+  try {
+    await firestore.runTransaction(async (transaction) => {
+      const doc = await transaction.get(spaceRef);
+      const currentCount = doc.data()?.messageCount || 0;
+      transaction.update(spaceRef, { messageCount: currentCount + 1 });
+    });
+  } catch (error) {
+    console.error({ error, spaceId });
+    throw new Error(`Failed to update count: ${error.message}`);
+  }
+}
+```
+
+### Indexes
+Create composite indexes for complex queries:
+
+```yaml
+# firestore.indexes.json
+{
+  "indexes": [
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spaceId", "order": "ASCENDING" },
+        { "fieldPath": "createTime", "order": "DESCENDING" }
+      ]
+    }
+  ]
+}
+```
+
+Deploy indexes:
+```bash
+gcloud firestore indexes create --collection=messages \
+  --field-config=field-path=spaceId,order=ascending \
+  --field-config=field-path=createTime,order=descending
+```
+
+## Vertex AI (Gemini)
+
+### Client Setup
+```javascript
+const { VertexAI } = require('@google-cloud/vertexai');
+
+// Initialize globally
+const vertexAI = new VertexAI({
+  project: process.env.PROJECT_ID,
+  location: process.env.REGION || 'us-central1'
+});
+
+const model = vertexAI.getGenerativeModel({
+  model: 'gemini-1.5-flash',
+  generationConfig: {
+    temperature: 0.7,
+    topP: 0.8,
+    topK: 40,
+    maxOutputTokens: 1024
+  }
+});
+```
+
+### Detect Questions
+```javascript
+async function isQuestion(text) {
+  const prompt = `Is the following text a question? Answer only "yes" or "no".\n\nText: "${text}"`;
+  
+  try {
+    const result = await model.generateContent(prompt);
+    const response = result.response.text().trim().toLowerCase();
+    return response === 'yes';
+  } catch (error) {
+    console.error({ error, text });
+    // Default to false on error
+    return false;
+  }
+}
+```
+
+### Generate Answers
+```javascript
+async function generateAnswer(question, context) {
+  const prompt = `
+Based on the following conversation history, answer the question.
+
+Conversation history:
+${context.map(msg => `${msg.sender.name}: ${msg.text}`).join('\n')}
+
+Question: ${question}
+
+Answer:
+  `.trim();
+  
+  try {
+    const result = await model.generateContent(prompt);
+    const answer = result.response.text();
+    
+    console.log({ question, answerLength: answer.length });
+    return answer;
+  } catch (error) {
+    console.error({ error, question });
+    throw new Error(`Failed to generate answer: ${error.message}`);
+  }
+}
+```
+
+### Rate Limits and Quotas
+- Vertex AI has rate limits (requests per minute)
+- Implement exponential backoff for 429 errors
+- Cache frequently asked questions
+
+```javascript
+async function generateAnswerWithCache(question, context) {
+  // Check cache first
+  const cached = await getFromCache(question);
+  if (cached) {
+    console.log({ question, cached: true });
+    return cached;
+  }
+  
+  // Generate and cache
+  const answer = await generateAnswer(question, context);
+  await setCache(question, answer, 3600); // Cache for 1 hour
+  return answer;
+}
+```
+
+### Error Handling
+```javascript
+async function generateAnswerSafe(question, context) {
+  try {
+    return await retryWithBackoff(() => generateAnswer(question, context));
+  } catch (error) {
+    console.error({ error, question });
+    // Fallback response
+    return "I'm sorry, I couldn't generate an answer at this time. Please try again later.";
+  }
+}
+```
+
+## Common Patterns
+
+### Retry with Exponential Backoff
+```javascript
+async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries - 1;
+      const isRetryable = [429, 500, 503].includes(error.code);
+      
+      if (isLastAttempt || !isRetryable) {
+        throw error;
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.warn({ attempt, delay, error: error.message });
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+```
+
+### Structured Logging
+```javascript
+function logAPICall(apiName, operation, duration, success, error = null) {
+  const logEntry = {
+    api: apiName,
+    operation: operation,
+    duration: duration,
+    success: success,
+    timestamp: new Date().toISOString()
+  };
+  
+  if (error) {
+    logEntry.error = {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    };
+    console.error(logEntry);
+  } else {
+    console.log(logEntry);
+  }
+}
+
+// Usage
+const startTime = Date.now();
+try {
+  const result = await sendMessage(spaceId, text);
+  logAPICall('Chat API', 'sendMessage', Date.now() - startTime, true);
+  return result;
+} catch (error) {
+  logAPICall('Chat API', 'sendMessage', Date.now() - startTime, false, error);
+  throw error;
+}
+```
+
+### Circuit Breaker Pattern
+For frequently failing services:
+
+```javascript
+class CircuitBreaker {
+  constructor(threshold = 5, timeout = 60000) {
+    this.failureCount = 0;
+    this.threshold = threshold;
+    this.timeout = timeout;
+    this.state = 'CLOSED'; // CLOSED, OPEN, HALF_OPEN
+    this.nextAttempt = Date.now();
+  }
+  
+  async call(fn) {
+    if (this.state === 'OPEN') {
+      if (Date.now() < this.nextAttempt) {
+        throw new Error('Circuit breaker is OPEN');
+      }
+      this.state = 'HALF_OPEN';
+    }
+    
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+  
+  onSuccess() {
+    this.failureCount = 0;
+    this.state = 'CLOSED';
+  }
+  
+  onFailure() {
+    this.failureCount++;
+    if (this.failureCount >= this.threshold) {
+      this.state = 'OPEN';
+      this.nextAttempt = Date.now() + this.timeout;
+      console.warn({ state: 'OPEN', nextAttempt: new Date(this.nextAttempt) });
+    }
+  }
+}
+
+// Usage
+const chatAPIBreaker = new CircuitBreaker();
+
+async function sendMessageSafe(spaceId, text) {
+  return await chatAPIBreaker.call(() => sendMessage(spaceId, text));
+}
+```
+
+## Best Practices Summary
+
+1. **Always use retry logic** with exponential backoff for transient failures
+2. **Implement timeouts** for all external API calls
+3. **Use structured logging** (JSON format) for better Cloud Logging queries
+4. **Cache frequently accessed data** (Gemini responses, Firestore queries)
+5. **Initialize API clients globally** for connection reuse (cold start optimization)
+6. **Handle OAuth2 token refresh** automatically before retrying
+7. **Use Firestore transactions** for atomic updates
+8. **Create Firestore indexes** for complex queries
+9. **Monitor rate limits** and quotas for each API
+10. **Implement circuit breakers** for failing services

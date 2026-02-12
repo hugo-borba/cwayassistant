@@ -1,0 +1,455 @@
+<!-- Quality Standards Enforced: H (Git & Workflow) -->
+<!-- Template Base: Git Workflow (Conventional Commits) -->
+<!-- Last Updated: 2026-02-12 -->
+
+# Git & Workflow Rules
+
+## Standards Enforced
+
+- **H. Git & Workflow**: Conventional commits, PR reviews, semantic versioning, branching strategy
+
+## Conventional Commit Messages
+
+### Format
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Types (Required)
+- **feat**: New feature (MINOR version bump in SemVer)
+- **fix**: Bug fix (PATCH version bump in SemVer)
+- **docs**: Documentation only changes
+- **style**: Code style changes (formatting, semicolons, no logic change)
+- **refactor**: Code change that neither fixes bug nor adds feature
+- **perf**: Performance improvement
+- **test**: Adding or updating tests
+- **chore**: Maintenance tasks (dependencies, config, build tools)
+- **ci**: CI/CD configuration changes
+- **build**: Build system changes (npm, webpack, etc.)
+- **revert**: Revert a previous commit
+
+### Examples
+```bash
+# Feature
+feat(auth): add OAuth2 token refresh mechanism
+
+# Bug fix
+fix(api): handle null response from Chat API
+
+# Documentation
+docs: update README with deployment instructions
+
+# Refactor
+refactor(services): extract common Firestore query logic
+
+# Breaking change (MAJOR version bump)
+feat(api)!: change response format to include metadata
+
+BREAKING CHANGE: Response format changed from { data } to { data, metadata }
+```
+
+### Scope (Optional but Recommended)
+Use scope to specify which part of codebase changed:
+- `auth` - Authentication/OAuth2
+- `api` - API endpoints
+- `chat` - Google Chat integration
+- `events` - Workspace Events / Pub/Sub
+- `firestore` - Firestore operations
+- `vertex` - Vertex AI integration
+- `tests` - Test updates
+- `deps` - Dependencies
+
+```bash
+feat(chat): add support for thread replies
+fix(firestore): correct message timestamp indexing
+chore(deps): update @google-cloud/firestore to v7.7.0
+```
+
+### Commit Message Rules
+1. **Type MUST be lowercase** (feat, fix, docs, NOT Feat, Fix)
+2. **Scope SHOULD be specific** (auth, api, NOT general)
+3. **Description MUST be lowercase** and short (≤50 characters ideal)
+4. **Body SHOULD explain WHAT and WHY**, not HOW (optional)
+5. **Footer SHOULD reference issues** (Closes #123, Fixes #456)
+6. **Breaking changes MUST include** "BREAKING CHANGE:" in footer or "!" after type
+
+### Good Commit Messages
+```bash
+feat(vertex): add question detection using Gemini
+
+Implements automatic question detection in chat messages using Vertex AI
+Gemini 1.5 Flash model. Questions trigger AI-powered answer generation.
+
+Closes #45
+
+---
+
+fix(auth): refresh expired tokens before API calls
+
+OAuth2 tokens now automatically refresh when expired (with 5-minute buffer).
+Prevents authentication errors when tokens expire mid-session.
+
+Fixes #78
+
+---
+
+refactor(services): extract retry logic to utility module
+
+Moves exponential backoff retry logic from individual services to shared
+utility. Reduces code duplication and ensures consistent retry behavior.
+```
+
+### Bad Commit Messages
+```bash
+# ❌ Too vague
+fix: bug fix
+
+# ❌ Missing type
+add OAuth2 support
+
+# ❌ Description too long
+feat(chat): add support for sending messages to Google Chat spaces including support for threads, reactions, and attachments
+
+# ❌ Wrong case
+Feat(auth): Add OAuth2
+
+# ❌ Describes HOW instead of WHAT
+refactor: changed loop to map and filter
+```
+
+## Branching Strategy
+
+### Branch Types
+- **main** - Production-ready code (always stable, deployable)
+- **feature/*** - New features (e.g., `feature/oauth-refresh`, `feature/123-add-ai-detection`)
+- **bugfix/*** - Bug fixes (e.g., `bugfix/null-pointer`, `bugfix/456-fix-timeout`)
+- **hotfix/*** - Urgent production fixes (e.g., `hotfix/security-patch`)
+- **docs/*** - Documentation updates (e.g., `docs/update-readme`)
+- **chore/*** - Maintenance tasks (e.g., `chore/update-deps`)
+
+### Branch Naming
+- Use **lowercase with hyphens**
+- Be **descriptive but concise**
+- Include **issue number** if applicable (format: `type/issue-description`)
+
+```bash
+# Good
+feature/oauth-token-refresh
+feature/123-add-vertex-ai-integration
+bugfix/456-handle-null-response
+hotfix/security-oauth2-leak
+docs/update-deployment-guide
+
+# Bad
+Feature/OAuth  # Wrong case
+oauth  # Missing type prefix
+feature/add_oauth_support_for_users  # Underscores, too verbose
+fix-bug  # Too generic
+```
+
+### Workflow
+1. **Create branch** from main
+   ```bash
+   git checkout main
+   git pull origin main
+   git checkout -b feature/my-feature
+   ```
+
+2. **Make changes** with frequent commits
+   ```bash
+   git add .
+   git commit -m "feat(scope): add feature description"
+   ```
+
+3. **Push branch** to remote
+   ```bash
+   git push -u origin feature/my-feature
+   ```
+
+4. **Create Pull Request** (see PR section below)
+
+5. **Merge** after approval (squash commits if needed)
+   ```bash
+   # Via GitHub UI or:
+   git checkout main
+   git merge --squash feature/my-feature
+   git commit -m "feat(scope): complete feature description"
+   git push origin main
+   ```
+
+6. **Delete branch** after merge
+   ```bash
+   git branch -d feature/my-feature
+   git push origin --delete feature/my-feature
+   ```
+
+## Pull Requests
+
+### PR Title
+Follow commit message format (will be used for merge commit):
+```
+feat(auth): add OAuth2 token refresh mechanism
+fix(api): handle null response from Chat API (#456)
+docs: update README with new architecture diagrams
+```
+
+### PR Description Template
+```markdown
+## Summary
+Brief description of what changed and why.
+
+## Changes
+- Added OAuth2 token refresh logic
+- Updated auth service tests
+- Modified README to document new flow
+
+## Testing
+How changes were tested:
+- Unit tests added for token refresh
+- Manual testing in dev environment
+- All existing tests pass
+
+## Screenshots (if applicable)
+[Attach screenshots for UI changes]
+
+## Breaking Changes
+List any breaking changes (or "None")
+
+## Related Issues
+Closes #123
+Fixes #456
+
+## Checklist
+- [ ] Tests added/updated
+- [ ] Documentation updated
+- [ ] No linting errors (`npm run lint`)
+- [ ] All tests passing (`npm test`)
+- [ ] No merge conflicts with main
+```
+
+### PR Best Practices
+
+**For Authors:**
+- Keep PRs **small and focused** (<400 lines ideal, <800 lines max)
+- **Self-review** before requesting review (check diff, run tests, fix lint)
+- **Link related issues** (Closes #123, Fixes #456)
+- **Add context** in description (why this change is needed)
+- **Respond to comments** promptly and respectfully
+- **Don't force-push** after review starts (makes diff hard to follow)
+
+**For Reviewers:**
+- Review within **24 hours** if possible
+- Be **constructive** and specific (not just "looks good")
+- **Ask questions** rather than make demands ("Could we...?" vs "You must...")
+- **Approve when satisfied**, request changes if needed
+- **Focus on**: correctness, security, readability, maintainability (not style - that's ESLint's job)
+
+### PR Review Checklist
+- [ ] Code follows architecture rules (controllers/services/model)
+- [ ] No hardcoded secrets or credentials
+- [ ] Input validation on external inputs
+- [ ] Error handling is appropriate
+- [ ] Tests added/updated for new code
+- [ ] JSDoc comments on public functions
+- [ ] README/docs updated if needed
+- [ ] No commented-out code
+- [ ] No debug console.log statements (unless intentional)
+- [ ] Performance considerations (no N+1 queries, appropriate caching)
+
+### Merge Strategy
+- **Squash and merge** for feature branches (keep main history clean)
+- **Merge commit** for complex features with logical commit history
+- **Rebase and merge** when commit history is already clean and meaningful
+
+```bash
+# Squash merge (preferred for most features)
+# Combines all commits into one clean commit on main
+
+# Merge commit (for complex features)
+# Preserves individual commits but adds merge commit
+
+# Rebase (when commit history is already clean)
+# Fast-forward merge, no merge commit
+```
+
+## Semantic Versioning
+
+### Version Format
+```
+vMAJOR.MINOR.PATCH
+```
+
+- **MAJOR** (v2.0.0) - Breaking changes (incompatible API changes)
+- **MINOR** (v1.3.0) - New features (backward compatible)
+- **PATCH** (v1.2.5) - Bug fixes (backward compatible)
+
+### When to Bump Version
+- **MAJOR**: Breaking changes (feat!, refactor! with BREAKING CHANGE footer)
+- **MINOR**: New features (feat:)
+- **PATCH**: Bug fixes (fix:)
+- **No bump**: docs:, test:, chore:, style:, refactor: (without breaking changes)
+
+### Version Tags
+```bash
+# Create annotated tag
+git tag -a v1.2.0 -m "Release v1.2.0: Add OAuth2 token refresh"
+
+# Push tag to remote
+git push origin v1.2.0
+
+# List tags
+git tag -l
+
+# Delete tag (if mistake)
+git tag -d v1.2.0
+git push origin --delete v1.2.0
+```
+
+### Pre-release Versions
+```
+v1.2.0-alpha.1  # Alpha release (unstable, for internal testing)
+v1.2.0-beta.2   # Beta release (more stable, for wider testing)
+v1.2.0-rc.1     # Release candidate (final testing before release)
+```
+
+## Git Workflow Commands
+
+### Common Operations
+```bash
+# Start new feature
+git checkout main
+git pull origin main
+git checkout -b feature/my-feature
+
+# Work on feature (commit frequently)
+git add .
+git commit -m "feat(scope): add X"
+
+# Keep feature branch updated with main
+git checkout main
+git pull origin main
+git checkout feature/my-feature
+git merge main  # Or: git rebase main
+
+# Push feature branch
+git push -u origin feature/my-feature
+
+# Update PR after changes
+git add .
+git commit -m "fix(scope): address review comments"
+git push origin feature/my-feature
+
+# Merge to main (after PR approval)
+# Usually done via GitHub UI, or:
+git checkout main
+git merge feature/my-feature
+git push origin main
+
+# Clean up
+git branch -d feature/my-feature
+git push origin --delete feature/my-feature
+```
+
+### Undo/Revert
+```bash
+# Undo last commit (keep changes)
+git reset --soft HEAD~1
+
+# Undo last commit (discard changes)
+git reset --hard HEAD~1
+
+# Revert a commit (create new commit that undoes it)
+git revert <commit-hash>
+
+# Discard local changes
+git checkout -- <file>
+git restore <file>
+
+# Stash work-in-progress
+git stash
+git stash pop  # Apply and remove from stash
+git stash list
+```
+
+## Deployment Workflow
+
+### Pre-deployment Checks
+```bash
+# Run all quality gates
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+
+# Or combined
+npm run lint && npm run format:check && npm run typecheck && npm test
+
+# Check for security vulnerabilities
+npm audit
+```
+
+### Deployment via deploy.sh
+```bash
+# Review deploy script first
+cat deploy.sh
+
+# Deploy (usually CI/CD does this, or manual)
+./deploy.sh
+
+# Or manual gcloud commands
+gcloud functions deploy app --gen2 --region=us-central1 --runtime=nodejs22 ...
+gcloud functions deploy events-app --gen2 --region=us-central1 --runtime=nodejs22 ...
+```
+
+### Post-deployment
+- Verify functions are healthy (check Cloud Console)
+- Test HTTP endpoint with curl/Postman
+- Monitor logs for errors (Cloud Logging)
+- Tag release in git:
+  ```bash
+  git tag -a v1.2.0 -m "Production deployment v1.2.0"
+  git push origin v1.2.0
+  ```
+
+## Code Review Workflow
+
+### When Requesting Review
+1. **Self-review first** - Read your own diff, catch obvious issues
+2. **Run quality gates** - Ensure lint, typecheck, tests pass
+3. **Write clear PR description** - Explain what and why
+4. **Request specific reviewers** - Tag relevant team members
+5. **Respond promptly** to comments
+
+### When Reviewing
+1. **Review within 24 hours** if possible
+2. **Check out branch locally** for complex changes
+   ```bash
+   git fetch origin
+   git checkout -b review-feature origin/feature/branch-name
+   npm install
+   npm test
+   ```
+3. **Test manually** if needed
+4. **Leave constructive comments**
+   - ✅ "Consider using Promise.all here for parallel execution"
+   - ❌ "This is wrong"
+5. **Approve or request changes**
+   - Approve: LGTM (Looks Good To Me) + optional minor suggestions
+   - Request Changes: Blocking issues that must be addressed
+
+## Best Practices Summary
+
+1. **Commit early, commit often** - Small, frequent commits
+2. **Write meaningful commit messages** - Follow Conventional Commits
+3. **Pull before push** - Always sync with main first
+4. **Never commit secrets** - Use .gitignore for credentials.json
+5. **Keep PRs small** - Easier to review and merge
+6. **Test before pushing** - Run quality gates locally
+7. **Delete merged branches** - Keep repository clean
+8. **Use git stash** for work-in-progress when switching branches
+9. **Review your own diff** before requesting review
+10. **Tag releases** - Use semantic versioning for deployments

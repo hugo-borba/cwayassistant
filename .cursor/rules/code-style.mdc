@@ -1,0 +1,587 @@
+<!-- Quality Standards Enforced: A (Code Quality), D (Documentation) -->
+<!-- Template Base: JavaScript/Node.js + ESLint+Prettier -->
+<!-- Last Updated: 2026-02-12 -->
+
+# Code Style Rules
+
+## Standards Enforced
+
+- **A. Code Quality**: Naming conventions, no unused vars, async/await patterns, complexity limits
+- **D. Documentation**: JSDoc requirements, inline comments
+
+## ESLint Configuration
+
+Configuration file: `.eslintrc.json`
+
+### Core Rules Enforced
+
+**Variables:**
+- `no-unused-vars`: ERROR - No unused variables (exception: prefix with `_` for intentionally unused params)
+- `no-var`: ERROR - Always use `const` or `let`, never `var`
+- `prefer-const`: WARN - Use `const` when variable is not reassigned
+- `no-undef`: ERROR - No undefined variables
+
+**Code Quality:**
+- `no-console`: OFF - console.log/error allowed in Node.js for Cloud Logging
+- `no-debugger`: ERROR - No debugger statements in committed code
+- `eqeqeq`: WARN - Prefer `===` and `!==` over `==` and `!=`
+- `curly`: WARN - Always use braces for if/else/while/for blocks
+
+**Best Practices:**
+- `consistent-return`: WARN - Functions should return consistently (all paths return or none)
+- `no-empty-function`: WARN - No empty functions (use comment to explain why empty)
+- `require-await`: WARN - Async functions must use await
+
+**ES6+ Features:**
+- `arrow-spacing`: ERROR - Enforce spacing around arrow function arrows (`() => {}`)
+- `no-duplicate-imports`: ERROR - Consolidate multiple imports from same module
+- `prefer-template`: WARN - Use template literals instead of string concatenation
+- `template-curly-spacing`: ERROR - No spaces inside template literal curly braces
+
+## Prettier Configuration
+
+Configuration file: `.prettierrc.json`
+
+### Formatting Standards
+
+- **Semi-colons:** Always use (`;`)
+- **Quotes:** Single quotes (`'string'`) except when avoiding escapes
+- **Trailing Commas:** ES5 valid positions (objects, arrays)
+- **Line Width:** 80 characters maximum
+- **Indentation:** 2 spaces (no tabs)
+- **Arrow Function Parens:** Always include (`(x) => x`)
+- **End of Line:** LF (Unix line endings)
+
+## Naming Conventions
+
+### Variables and Functions
+
+- **camelCase** for variables and functions
+- Descriptive names (no single letters except loop counters)
+- Boolean variables start with `is`, `has`, `should`, `can`
+- Private properties/methods prefix with `_` (convention, not enforced)
+
+```javascript
+// Good
+const userName = 'Alice';
+const isAuthenticated = true;
+const hasPermission = false;
+function calculateTotal(items) { ... }
+async function fetchUserData(userId) { ... }
+
+// Bad
+const UserName = 'Alice'; // PascalCase for variables
+const authenticated = true; // Not clear it's boolean
+const x = 10; // Single letter, unclear
+function calc(i) { ... } // Abbreviated, unclear param
+```
+
+### Classes and Constructors
+
+- **PascalCase** for class names
+- Constructor functions also PascalCase
+- Clear, noun-based names
+
+```javascript
+// Good
+class UserService { }
+class MessageProcessor { }
+class FirestoreClient { }
+
+// Bad
+class userService { } // camelCase
+class process { } // Verb, not noun; too generic
+```
+
+### Constants
+
+- **SCREAMING_SNAKE_CASE** for true constants (immutable, never changes)
+- Regular camelCase for config objects (even if const)
+
+```javascript
+// Good
+const MAX_RETRIES = 3;
+const API_TIMEOUT_MS = 5000;
+const DEFAULT_REGION = 'us-central1';
+
+const config = {
+  projectId: 'my-project',
+  timeout: 60000
+}; // camelCase for object, even though const
+
+// Bad
+const maxRetries = 3; // Should be SCREAMING_SNAKE_CASE
+const MAX_CONFIG = { ... }; // Object properties should be camelCase
+```
+
+### Files and Directories
+
+- **kebab-case** for all file names
+- **kebab-case** for directory names
+- Descriptive names indicating purpose
+
+```
+Good:
+  controllers/app.js
+  controllers/event-app.js
+  services/user-auth-chat-service.js
+  services/firestore-service.js
+  model/message.js
+  utils/error-handler.js
+
+Bad:
+  controllers/App.js (PascalCase)
+  services/UserAuthChatService.js (PascalCase)
+  utils/errorhandler.js (no separator)
+```
+
+## Variables and Declarations
+
+### const vs let
+- **Default to `const`** - use for all variables that aren't reassigned
+- **Use `let`** only when variable will be reassigned
+- **Never use `var`** - function scoping is error-prone
+
+```javascript
+// Good
+const userId = 123;
+const items = [1, 2, 3];
+let total = 0;
+for (const item of items) {
+  total += item; // let because total is reassigned
+}
+
+// Bad
+var userId = 123; // Never use var
+let items = [1, 2, 3]; // Should be const (not reassigned)
+```
+
+### Destructuring
+- Use destructuring for object and array access when accessing 2+ properties
+- Use rest operator for collecting remaining properties
+
+```javascript
+// Good
+const { userId, userName, email } = user;
+const [first, second, ...rest] = array;
+const { name, age, ...otherProps } = person;
+
+// Bad
+const userId = user.userId;
+const userName = user.userName;
+const email = user.email; // Should destructure
+```
+
+### Template Literals
+- Use template literals for string interpolation
+- Use template literals for multi-line strings
+- Use regular strings for simple, non-interpolated strings
+
+```javascript
+// Good
+const message = `User ${userName} logged in at ${timestamp}`;
+const query = `
+  SELECT * FROM users
+  WHERE id = ${userId}
+`;
+const simple = 'Hello'; // OK, no interpolation needed
+
+// Bad
+const message = 'User ' + userName + ' logged in at ' + timestamp; // Use template
+```
+
+## Async/Await Patterns
+
+### Always Use async/await
+- **Prefer async/await** over raw promises (.then/.catch)
+- Makes code more readable and easier to debug
+- Allows try/catch for error handling
+
+```javascript
+// Good
+async function fetchData(id) {
+  try {
+    const response = await apiClient.get(`/data/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error({ error, id });
+    throw new Error(`Failed to fetch data: ${error.message}`);
+  }
+}
+
+// Bad
+function fetchData(id) {
+  return apiClient.get(`/data/${id}`)
+    .then(response => response.data)
+    .catch(error => {
+      console.error({ error, id });
+      throw new Error(`Failed to fetch data: ${error.message}`);
+    });
+}
+```
+
+### Parallel vs Sequential
+- Use `Promise.all()` for parallel operations (independent)
+- Use `Promise.allSettled()` when all results needed (even failures)
+- Use sequential await when operations depend on each other
+
+```javascript
+// Good: Parallel (independent operations)
+async function fetchAllData(ids) {
+  const promises = ids.map(id => fetchData(id));
+  return await Promise.all(promises);
+}
+
+// Good: Sequential (dependent operations)
+async function processUser(userId) {
+  const user = await fetchUser(userId);
+  const permissions = await fetchPermissions(user.roleId); // Depends on user
+  return { user, permissions };
+}
+
+// Bad: Sequential when could be parallel
+async function fetchAllData(ids) {
+  const results = [];
+  for (const id of ids) {
+    const data = await fetchData(id); // Blocks on each iteration
+    results.push(data);
+  }
+  return results;
+}
+```
+
+### Error Handling with async/await
+- Always use try/catch for async operations
+- Re-throw errors after logging (unless intentionally swallowing)
+- Provide context in error messages
+
+```javascript
+// Good
+async function updateUser(userId, updates) {
+  try {
+    const user = await firestore.collection('users').doc(userId).get();
+    if (!user.exists) {
+      throw new Error(`User not found: ${userId}`);
+    }
+    await firestore.collection('users').doc(userId).update(updates);
+    return { success: true };
+  } catch (error) {
+    console.error({ error, userId, updates });
+    throw error; // Re-throw after logging
+  }
+}
+
+// Bad
+async function updateUser(userId, updates) {
+  // No try/catch - errors not logged
+  const user = await firestore.collection('users').doc(userId).get();
+  await firestore.collection('users').doc(userId).update(updates);
+  return { success: true };
+}
+```
+
+## Function Definitions
+
+### Arrow Functions vs Function Declarations
+- Use **arrow functions** for callbacks and short functions
+- Use **function declarations** for exported functions (shows in stack traces)
+- Use **arrow functions** for preserving `this` context (rare in Node.js backend)
+
+```javascript
+// Good: Function declaration for exported function
+async function fetchUserData(userId) {
+  const users = await getUsers();
+  return users.find(u => u.id === userId); // Arrow for callback
+}
+
+module.exports = { fetchUserData };
+
+// Good: Arrow function for callback
+items.map(item => item.value);
+items.filter(item => item.isActive);
+
+// Bad: Arrow function for exported top-level (harder to debug)
+const fetchUserData = async (userId) => {
+  // ...
+};
+module.exports = { fetchUserData };
+```
+
+### Function Length
+- Keep functions **<50 lines** (ideal <30)
+- If longer, extract helper functions
+- Each function should do ONE thing
+
+### Parameters
+- Maximum **3 positional parameters** (ideal)
+- For 4+ parameters, use options object
+- Required params first, optional params last (or use destructuring with defaults)
+
+```javascript
+// Good: Options object for multiple params
+async function createUser({ username, email, password, role = 'user', isActive = true }) {
+  // ...
+}
+
+// Good: Few required params
+async function fetchData(id, includeMetadata = false) {
+  // ...
+}
+
+// Bad: Too many positional params
+async function createUser(username, email, password, role, isActive, permissions, createdBy) {
+  // ...
+}
+```
+
+## Imports and Exports
+
+### Import Organization
+Group imports in this order:
+1. External dependencies (npm packages)
+2. Internal services
+3. Internal models
+4. Internal utilities
+
+Leave blank line between groups.
+
+```javascript
+// External dependencies
+const { Firestore } = require('@google-cloud/firestore');
+const { VertexAI } = require('@google-cloud/vertexai');
+
+// Internal services
+const { authenticateUser } = require('../services/user-auth-service');
+const { storeMessage } = require('../services/firestore-service');
+
+// Internal models
+const { Message } = require('../model/message');
+
+// Internal utilities
+const { formatDate } = require('../utils/date-formatter');
+```
+
+### Export Patterns
+- Use **named exports** for multiple exports: `module.exports = { funcA, funcB }`
+- Use **default exports** rarely (prefer named for better IDE support)
+- Export factory functions for dependency injection
+
+```javascript
+// Good: Named exports
+function createService() { ... }
+function destroyService() { ... }
+module.exports = { createService, destroyService };
+
+// Good: Single export with descriptive name
+class UserService { ... }
+module.exports = { UserService };
+
+// Bad: Default export (less searchable, IDE support varies)
+module.exports = UserService;
+```
+
+## Comments and Documentation
+
+### JSDoc for Public Functions
+**REQUIRED** for all public functions, classes, methods.
+
+Must include:
+- Description (what it does)
+- `@param` for each parameter (type + description)
+- `@returns` for return value (type + description)
+- `@throws` if function can throw errors
+- `@example` for complex functions
+
+```javascript
+/**
+ * Authenticates user using OAuth2 and returns JWT token
+ * @param {Object} req - Express request object
+ * @param {string} req.body.code - OAuth2 authorization code
+ * @returns {Promise<string>} JWT token for authenticated user
+ * @throws {Error} If authentication fails or code is invalid
+ * @example
+ * const token = await authenticateUser(req);
+ * // Returns "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ */
+async function authenticateUser(req) {
+  // Implementation
+}
+```
+
+### Inline Comments
+- Explain **WHY**, not **WHAT**
+- Use for complex logic, workarounds, edge cases
+- Keep comments concise
+- Update comments when code changes
+
+```javascript
+// Good: Explains WHY
+// Use exponential backoff to avoid rate limiting during retry
+await retryWithBackoff(() => apiCall());
+
+// Workaround for API bug #1234: endpoint returns 200 with error in body
+if (response.status === 200 && response.body.error) {
+  throw new Error(response.body.error);
+}
+
+// Bad: Explains WHAT (obvious from code)
+// Call the API
+await apiCall();
+
+// Increment counter
+counter++;
+```
+
+### TODO and FIXME
+- Use `TODO:` for future improvements
+- Use `FIXME:` for bugs that need fixing
+- Use `HACK:` or `WORKAROUND:` for non-ideal solutions
+- Always include context/explanation
+
+```javascript
+// TODO: Refactor to use async/await instead of callbacks
+// FIXME: Memory leak when processing large files (issue #456)
+// HACK: API doesn't support pagination, loading all results at once
+```
+
+## Code Complexity
+
+### Cyclomatic Complexity
+- Target: **≤10 per function**
+- If >10, refactor into smaller functions
+- Use early returns to reduce nesting
+
+```javascript
+// Good: Low complexity with early returns
+function processUser(user) {
+  if (!user) {
+    throw new Error('User is required');
+  }
+  if (!user.isActive) {
+    return { status: 'inactive' };
+  }
+  if (!user.hasPermission('read')) {
+    return { status: 'unauthorized' };
+  }
+  return processActiveUser(user);
+}
+
+// Bad: High complexity with deep nesting
+function processUser(user) {
+  if (user) {
+    if (user.isActive) {
+      if (user.hasPermission('read')) {
+        // Deep nesting
+        return processActiveUser(user);
+      } else {
+        return { status: 'unauthorized' };
+      }
+    } else {
+      return { status: 'inactive' };
+    }
+  } else {
+    throw new Error('User is required');
+  }
+}
+```
+
+### Avoid Deep Nesting
+- Maximum nesting depth: **3 levels**
+- Extract nested logic to functions
+- Use early returns / guard clauses
+
+## Array and Object Operations
+
+### Prefer Functional Array Methods
+- Use `map`, `filter`, `reduce`, `find`, `some`, `every` over loops when appropriate
+- Avoid mutating original arrays (use methods that return new arrays)
+
+```javascript
+// Good: Functional approach
+const activeUsers = users.filter(u => u.isActive);
+const userNames = users.map(u => u.name);
+const hasAdmin = users.some(u => u.role === 'admin');
+
+// OK: For loop when performance critical or complex logic
+for (const user of users) {
+  if (await complexAsyncCheck(user)) {
+    // Process user
+  }
+}
+
+// Bad: Loop when functional method would work
+const activeUsers = [];
+for (let i = 0; i < users.length; i++) {
+  if (users[i].isActive) {
+    activeUsers.push(users[i]);
+  }
+}
+```
+
+### Object Property Access
+- Use dot notation when possible
+- Use bracket notation for dynamic keys or keys with special characters
+
+```javascript
+// Good
+const name = user.name;
+const value = config[dynamicKey];
+const special = obj['property-with-dashes'];
+
+// Bad
+const name = user['name']; // Use dot notation
+```
+
+## Formatting Best Practices
+
+### Indentation and Spacing
+- **2 spaces** for indentation (enforced by Prettier)
+- **No tabs** (enforced by Prettier)
+- Blank line between logical sections
+- No trailing whitespace
+
+### Line Length
+- **80 characters** maximum (enforced by Prettier)
+- Prettier auto-wraps long lines
+- Break long function calls/chains across multiple lines
+
+### Braces and Blocks
+- Always use braces for if/else/while/for (even single statements)
+- Opening brace on same line (K&R style)
+
+```javascript
+// Good
+if (condition) {
+  doSomething();
+}
+
+// Bad
+if (condition) doSomething(); // No braces
+if (condition)
+{  // Opening brace on new line
+  doSomething();
+}
+```
+
+## Integration Workflow
+
+### Pre-commit Checks
+Run before committing:
+```bash
+npm run lint        # Check linting errors
+npm run format:check # Check formatting (dry run)
+npm run typecheck   # Check JSDoc types
+npm test            # Run tests
+```
+
+### Auto-fix
+```bash
+npm run lint -- --fix  # Auto-fix linting issues
+npm run format         # Auto-format code (only if safe)
+```
+
+### IDE Configuration
+- Enable "Format on Save" in IDE
+- Use project's `.eslintrc.json` and `.prettierrc.json`
+- Show inline linting errors
+- Enable ESLint and Prettier extensions

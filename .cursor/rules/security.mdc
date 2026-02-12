@@ -1,0 +1,561 @@
+<!-- Quality Standards Enforced: C (Security) -->
+<!-- Template Base: Original (cwayassistant-specific OAuth2 patterns) -->
+<!-- Last Updated: 2026-02-12 -->
+
+# Security Rules
+
+## Standards Enforced
+
+- **C. Security**: No hardcoded secrets, OAuth2 best practices, input validation, SAST patterns
+
+<!-- ORIGINAL: cwayassistant-specific OAuth2 patterns -->
+
+## Secrets Management
+
+### NEVER Hardcode Secrets
+**Absolutely forbidden** to hardcode:
+- API keys
+- OAuth2 client secrets
+- JWT signing keys
+- Database passwords
+- Service account credentials
+- Any authentication tokens
+
+```javascript
+// ❌ FORBIDDEN
+const API_KEY = 'sk-1234567890abcdef'; // NEVER DO THIS
+const CLIENT_SECRET = 'secret123'; // NEVER DO THIS
+
+// ✅ CORRECT
+const API_KEY = process.env.API_KEY;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+```
+
+### Use Environment Variables
+Store sensitive values as environment variables:
+
+```javascript
+const config = {
+  projectId: process.env.PROJECT_ID,
+  clientId: process.env.OAUTH_CLIENT_ID,
+  clientSecret: process.env.OAUTH_CLIENT_SECRET,
+  jwtSecret: process.env.JWT_SECRET
+};
+
+// Validate required env vars on startup
+function validateEnv() {
+  const required = ['PROJECT_ID', 'OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET'];
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
+
+validateEnv();
+```
+
+### Use Google Secret Manager
+For production secrets:
+
+```javascript
+const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+const client = new SecretManagerServiceClient();
+
+async function getSecret(secretName) {
+  const projectId = process.env.PROJECT_ID;
+  const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
+  
+  try {
+    const [version] = await client.accessSecretVersion({ name });
+    return version.payload.data.toString();
+  } catch (error) {
+    console.error({ error, secretName });
+    throw new Error(`Failed to access secret: ${secretName}`);
+  }
+}
+
+// Usage
+const oauthClientSecret = await getSecret('oauth-client-secret');
+const jwtSecret = await getSecret('jwt-signing-key');
+```
+
+### credentials.json Handling
+The `credentials.json` file contains OAuth2 client configuration:
+
+**CRITICAL:**
+- MUST be listed in `.gitignore`
+- NEVER commit to git
+- Use `credentials.json.template` as documentation without actual secrets
+
+**Verify it's ignored:**
+```bash
+git check-ignore credentials.json
+# Should output: credentials.json
+```
+
+**Template structure:**
+```json
+{
+  "web": {
+    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+    "project_id": "your-project-id",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "redirect_uris": ["https://your-region-your-project.cloudfunctions.net/app/oauth2"]
+  }
+}
+```
+
+## OAuth2 Dual Authentication
+
+### Architecture Overview
+cwayassistant uses **two authentication modes**:
+1. **User OAuth2** - Acting on behalf of users (read/send messages as user)
+2. **App-level Auth** - Acting as the app (admin operations, subscriptions)
+
+### User OAuth2 Flow
+
+#### Step 1: Authorization URL
+Generate URL to redirect user for consent:
+
+```javascript
+const { google } = require('googleapis');
+const fs = require('fs');
+
+// Load credentials
+const credentials = JSON.parse(fs.readFileSync('credentials.json'));
+const { client_id, client_secret, redirect_uris } = credentials.web;
+
+// Create OAuth2 client
+const oauth2Client = new google.auth.OAuth2(
+  client_id,
+  client_secret,
+  redirect_uris[0]
+);
+
+// Generate authorization URL
+function getAuthorizationUrl() {
+  const scopes = [
+    'https://www.googleapis.com/auth/chat.messages',
+    'https://www.googleapis.com/auth/chat.spaces.readonly'
+  ];
+  
+  return oauth2Client.generateAuthUrl({
+    access_type: 'offline', // Request refresh token
+    scope: scopes,
+    prompt: 'consent' // Force consent screen to get refresh token
+  });
+}
+```
+
+#### Step 2: Handle OAuth2 Callback
+Exchange authorization code for tokens:
+
+```javascript
+async function handleOAuth2Callback(authorizationCode) {
+  try {
+    // Exchange code for tokens
+    const { tokens } = await oauth2Client.getToken(authorizationCode);
+    
+    // tokens = {
+    //   access_token: 'ya29...',
+    //   refresh_token: '1//...',
+    //   scope: 'https://www.googleapis.com/auth/chat.messages',
+    //   token_type: 'Bearer',
+    //   expiry_date: 1234567890000
+    // }
+    
+    // Store tokens securely (encrypted in Firestore)
+    await storeUserTokens(userId, tokens);
+    
+    return tokens;
+  } catch (error) {
+    console.error({ error, message: 'OAuth2 callback failed' });
+    throw new Error('Authentication failed');
+  }
+}
+```
+
+#### Step 3: Store Tokens Securely
+**NEVER store tokens in plain text**. Always encrypt:
+
+```javascript
+const crypto = require('crypto');
+
+// Encryption key from environment (32 bytes for AES-256)
+const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY, 'hex');
+const IV_LENGTH = 16; // AES block size
+
+function encrypt(text) {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+function decrypt(text) {
+  const parts = text.split(':');
+  const iv = Buffer.from(parts[0], 'hex');
+  const encrypted = parts[1];
+  const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+// Store tokens encrypted
+async function storeUserTokens(userId, tokens) {
+  const encryptedAccessToken = encrypt(tokens.access_token);
+  const encryptedRefreshToken = encrypt(tokens.refresh_token);
+  
+  await firestore.collection('tokens').doc(userId).set({
+    accessToken: encryptedAccessToken,
+    refreshToken: encryptedRefreshToken,
+    expiresAt: new Date(tokens.expiry_date),
+    updatedAt: new Date()
+  });
+}
+
+// Retrieve and decrypt tokens
+async function getUserTokens(userId) {
+  const doc = await firestore.collection('tokens').doc(userId).get();
+  
+  if (!doc.exists) {
+    throw new Error('User tokens not found');
+  }
+  
+  const data = doc.data();
+  return {
+    accessToken: decrypt(data.accessToken),
+    refreshToken: decrypt(data.refreshToken),
+    expiresAt: data.expiresAt.toDate()
+  };
+}
+```
+
+#### Step 4: Refresh Expired Tokens
+```javascript
+async function getValidAccessToken(userId) {
+  const tokens = await getUserTokens(userId);
+  const now = new Date();
+  
+  // Check if token is expired (with 5-minute buffer)
+  if (tokens.expiresAt < new Date(now.getTime() + 5 * 60 * 1000)) {
+    console.log({ userId, message: 'Token expired, refreshing' });
+    
+    // Refresh token
+    oauth2Client.setCredentials({ refresh_token: tokens.refreshToken });
+    const { credentials } = await oauth2Client.refreshAccessToken();
+    
+    // Store new tokens
+    await storeUserTokens(userId, {
+      access_token: credentials.access_token,
+      refresh_token: tokens.refreshToken, // Keep old refresh token
+      expiry_date: credentials.expiry_date
+    });
+    
+    return credentials.access_token;
+  }
+  
+  return tokens.accessToken;
+}
+```
+
+### App-level Authentication
+
+For operations not on behalf of users (e.g., creating subscriptions):
+
+```javascript
+const { google } = require('googleapis');
+
+// Use Application Default Credentials (service account)
+async function getAppAuthClient() {
+  const auth = new google.auth.GoogleAuth({
+    scopes: [
+      'https://www.googleapis.com/auth/chat.bot',
+      'https://www.googleapis.com/auth/cloud-platform'
+    ]
+  });
+  
+  return await auth.getClient();
+}
+
+// Usage
+const authClient = await getAppAuthClient();
+const workspaceevents = google.workspaceevents({ version: 'v1', auth: authClient });
+```
+
+## Input Validation
+
+### Validate All External Inputs
+**ALWAYS validate** inputs from:
+- HTTP request body (`req.body`)
+- HTTP query parameters (`req.query`)
+- HTTP URL parameters (`req.params`)
+- Pub/Sub event data (`event.data`)
+- Any user-provided data
+
+```javascript
+function validateMessageRequest(req) {
+  const errors = [];
+  
+  if (!req.body) {
+    errors.push('Request body is required');
+  }
+  
+  if (!req.body.message) {
+    errors.push('message field is required');
+  }
+  
+  if (!req.body.message.text || typeof req.body.message.text !== 'string') {
+    errors.push('message.text must be a non-empty string');
+  }
+  
+  if (req.body.message.text.length > 4000) {
+    errors.push('message.text exceeds maximum length of 4000 characters');
+  }
+  
+  if (errors.length > 0) {
+    throw new ValidationError(errors.join('; '));
+  }
+}
+
+// Custom error class
+class ValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ValidationError';
+    this.code = 400;
+  }
+}
+
+// Usage in controller
+exports.handleMessage = async (req, res) => {
+  try {
+    validateMessageRequest(req);
+    // Process request
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+    // Other errors
+  }
+};
+```
+
+### Sanitize Inputs
+Remove or escape dangerous characters:
+
+```javascript
+function sanitizeText(text) {
+  // Remove control characters
+  let sanitized = text.replace(/[\x00-\x1F\x7F]/g, '');
+  
+  // Trim whitespace
+  sanitized = sanitized.trim();
+  
+  // Normalize whitespace
+  sanitized = sanitized.replace(/\s+/g, ' ');
+  
+  return sanitized;
+}
+
+// Usage
+const sanitized = sanitizeText(req.body.message.text);
+```
+
+### Type Checking
+Use JSDoc with checkJs for type safety:
+
+```javascript
+/**
+ * @param {string} userId
+ * @param {Object} message
+ * @param {string} message.text
+ * @param {string} message.spaceId
+ */
+function processMessage(userId, message) {
+  // TypeScript checkJs will warn if wrong types passed
+}
+```
+
+## Preventing Common Vulnerabilities
+
+### SQL Injection (Not Applicable)
+Firestore uses NoSQL with parameterized queries, but still validate inputs:
+
+```javascript
+// ✅ SAFE: Firestore parameterized query
+const snapshot = await firestore
+  .collection('messages')
+  .where('spaceId', '==', userProvidedSpaceId) // Safe, parameterized
+  .get();
+
+// ❌ UNSAFE: Don't construct queries from strings
+// (Not possible with Firestore SDK, but avoid in general)
+```
+
+### Command Injection
+**NEVER execute user input as commands:**
+
+```javascript
+// ❌ FORBIDDEN
+const { exec } = require('child_process');
+exec(`process-data ${userInput}`); // Dangerous!
+
+// ✅ If must execute, use safe alternatives
+const { spawn } = require('child_process');
+const child = spawn('process-data', [userInput]); // Args are escaped
+```
+
+### Path Traversal
+Validate file paths if accepting user input:
+
+```javascript
+const path = require('path');
+
+function validateFilePath(userPath) {
+  // Resolve to absolute path
+  const resolved = path.resolve(userPath);
+  
+  // Check if within allowed directory
+  const allowedDir = path.resolve('./data');
+  if (!resolved.startsWith(allowedDir)) {
+    throw new Error('Invalid file path: outside allowed directory');
+  }
+  
+  return resolved;
+}
+```
+
+### Cross-Site Scripting (XSS)
+Not applicable for backend API, but if rendering HTML:
+
+```javascript
+// ✅ Use template engines with auto-escaping
+// Or escape manually
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
+```
+
+## Logging Security
+
+### NEVER Log Sensitive Data
+```javascript
+// ❌ FORBIDDEN
+console.log({ accessToken: token }); // Exposes token in logs!
+console.log({ password: userPassword }); // Exposes password!
+console.error({ error, credentials: oauth2Credentials }); // Exposes secrets!
+
+// ✅ CORRECT
+console.log({ userId, action: 'authenticated' }); // Safe
+console.error({ error: error.message, userId }); // Safe, no sensitive data
+```
+
+### Redact Sensitive Fields
+```javascript
+function redactSensitiveData(obj) {
+  const redacted = { ...obj };
+  const sensitiveKeys = ['accessToken', 'refreshToken', 'password', 'secret', 'apiKey'];
+  
+  for (const key of sensitiveKeys) {
+    if (redacted[key]) {
+      redacted[key] = '[REDACTED]';
+    }
+  }
+  
+  return redacted;
+}
+
+// Usage
+console.log(redactSensitiveData({ userId: '123', accessToken: 'secret' }));
+// Outputs: { userId: '123', accessToken: '[REDACTED]' }
+```
+
+## Rate Limiting and Abuse Prevention
+
+### Implement Rate Limiting
+Protect endpoints from abuse:
+
+```javascript
+const rateLimit = new Map(); // In-memory (use Redis for production)
+
+function checkRateLimit(userId, maxRequests = 100, windowMs = 60000) {
+  const now = Date.now();
+  const userRequests = rateLimit.get(userId) || [];
+  
+  // Remove expired entries
+  const validRequests = userRequests.filter(timestamp => now - timestamp < windowMs);
+  
+  if (validRequests.length >= maxRequests) {
+    throw new Error('Rate limit exceeded');
+  }
+  
+  validRequests.push(now);
+  rateLimit.set(userId, validRequests);
+}
+
+// Usage in controller
+exports.handleRequest = async (req, res) => {
+  const userId = getUserIdFromToken(req);
+  
+  try {
+    checkRateLimit(userId);
+    // Process request
+  } catch (error) {
+    if (error.message === 'Rate limit exceeded') {
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+  }
+};
+```
+
+## IAM and Permissions
+
+### Principle of Least Privilege
+Grant minimum necessary permissions:
+
+```bash
+# Service account for Cloud Functions
+gcloud iam service-accounts create cwayassistant-sa \
+  --display-name="cwayassistant Service Account"
+
+# Grant only needed permissions
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:cwayassistant-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/datastore.user"  # Firestore access
+
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:cwayassistant-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/pubsub.subscriber"  # Pub/Sub access
+
+# Don't grant roles/owner or roles/editor!
+```
+
+## Security Checklist
+
+Before deploying or merging code, verify:
+
+- [ ] No hardcoded secrets (grep -r "API_KEY\|SECRET\|PASSWORD" .)
+- [ ] credentials.json is in .gitignore
+- [ ] credentials.json not tracked by git
+- [ ] Environment variables used for sensitive config
+- [ ] OAuth2 tokens stored encrypted in Firestore
+- [ ] Input validation on all external inputs
+- [ ] No sensitive data logged (tokens, passwords)
+- [ ] Rate limiting implemented on public endpoints
+- [ ] IAM permissions follow least privilege
+- [ ] npm audit shows 0 critical vulnerabilities
+- [ ] HTTPS enforced (automatic with Cloud Functions)
+- [ ] Authentication required on protected endpoints

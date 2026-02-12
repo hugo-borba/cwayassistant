@@ -1,0 +1,110 @@
+# Testing Guidelines - Mocha
+
+## Mocha Test Structure
+
+### Organization
+
+- Use `describe` blocks to group related tests
+- Use `it` blocks for individual test cases
+- Nest `describe` blocks for hierarchical organization
+- Name tests clearly: "should [expected behavior] when [condition]"
+- Keep test files parallel to source files in test/ directory
+
+### Setup and Teardown
+
+- Use `beforeEach` for test-specific setup
+- Use `afterEach` for test-specific cleanup
+- Use `before` for suite-wide setup (use sparingly)
+- Use `after` for suite-wide cleanup (use sparingly)
+- Always clean up resources (close connections, clear mocks)
+
+### Async Testing
+
+- Return promises from async tests
+- Use async/await pattern consistently
+- Set appropriate timeouts for async operations
+- Use `done` callback only when necessary (prefer promises)
+- Handle errors properly in async tests
+
+### Assertions
+
+- Use clear, descriptive assertion messages
+- Test one thing per test case
+- Use strict equality (===) in assertions
+- Test both success and failure paths
+- Include edge cases (null, undefined, empty, invalid input)
+
+### Mocking and Stubbing
+
+- Use Sinon for mocking/stubbing/spies
+- Use proxyquire for module-level mocking
+- Mock external dependencies (APIs, databases, file system)
+- Never make real HTTP requests in unit tests
+- Restore all mocks in afterEach hooks
+
+### Test Coverage
+
+- Aim for ≥70% overall coverage
+- Aim for ≥90% coverage in critical paths (services, business logic)
+- Focus on testing behavior, not implementation
+- Don't test trivial code (getters, setters)
+- Use nyc/istanbul for coverage reports
+
+### Best Practices
+
+- Tests should be independent (no shared state)
+- Tests should be deterministic (same input → same output)
+- Tests should be fast (<5s total suite time target)
+- Avoid brittle tests (overly specific mocks, implementation details)
+- Use test fixtures for complex test data
+- Parameterize tests for multiple scenarios when appropriate
+
+### Example Structure
+
+```javascript
+// test/services/my-service.test.js
+const { expect } = require('chai');
+const sinon = require('sinon');
+const proxyquire = require('proxyquire');
+
+describe('MyService', () => {
+  let service;
+  let mockDependency;
+
+  beforeEach(() => {
+    mockDependency = {
+      doSomething: sinon.stub()
+    };
+    
+    const MyService = proxyquire('../services/my-service', {
+      './dependency': mockDependency
+    });
+    
+    service = new MyService();
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  describe('methodName', () => {
+    it('should return expected result when input is valid', async () => {
+      // Arrange
+      mockDependency.doSomething.resolves({ data: 'value' });
+      
+      // Act
+      const result = await service.methodName('input');
+      
+      // Assert
+      expect(result).to.deep.equal({ data: 'value' });
+      expect(mockDependency.doSomething).to.have.been.calledOnce;
+    });
+
+    it('should throw error when input is invalid', async () => {
+      // Act & Assert
+      await expect(service.methodName(null))
+        .to.be.rejectedWith('Invalid input');
+    });
+  });
+});
+```

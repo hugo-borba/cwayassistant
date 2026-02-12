@@ -1,0 +1,104 @@
+# API/Backend Development Guidelines
+
+## RESTful API Design
+
+### HTTP Methods
+
+- GET: Retrieve resources (idempotent, cacheable)
+- POST: Create new resources
+- PUT: Replace entire resource
+- PATCH: Partial update of resource
+- DELETE: Remove resource (idempotent)
+
+### Status Codes
+
+- 200 OK: Successful GET, PUT, PATCH
+- 201 Created: Successful POST
+- 204 No Content: Successful DELETE
+- 400 Bad Request: Invalid input/validation error
+- 401 Unauthorized: Missing or invalid authentication
+- 403 Forbidden: Authenticated but not authorized
+- 404 Not Found: Resource doesn't exist
+- 409 Conflict: Resource conflict (e.g., duplicate)
+- 500 Internal Server Error: Unexpected server error
+- 503 Service Unavailable: Temporary unavailability
+
+### Request/Response Format
+
+- Use JSON for request and response bodies
+- Set Content-Type: application/json headers
+- Use consistent naming conventions (camelCase or snake_case)
+- Include pagination for list endpoints (limit, offset/cursor)
+- Use query parameters for filtering, sorting, searching
+- Return meaningful error messages with details
+
+### Error Handling
+
+- Return consistent error response format:
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "Human-readable message",
+      "details": [...]
+    }
+  }
+  ```
+- Log errors with context (request ID, user ID, timestamp)
+- Don't expose internal implementation details
+- Handle validation errors separately from system errors
+- Use error codes for programmatic handling
+
+### Authentication & Authorization
+
+- Use JWT tokens for stateless authentication
+- Store tokens securely (httpOnly cookies or Authorization header)
+- Validate tokens on every protected endpoint
+- Implement role-based access control (RBAC)
+- Use API keys for service-to-service communication
+- Rotate secrets regularly
+- Never log or expose tokens
+
+### API Versioning
+
+- Version APIs in URL path (/v1/, /v2/)
+- Maintain backward compatibility within major versions
+- Deprecate old versions gracefully with warnings
+- Document breaking changes clearly
+- Use semantic versioning (MAJOR.MINOR.PATCH)
+
+### Rate Limiting
+
+- Implement rate limiting per user/IP
+- Return 429 Too Many Requests when exceeded
+- Include rate limit headers (X-RateLimit-*)
+- Use exponential backoff for retries
+- Document rate limits in API docs
+
+### Performance
+
+- Use database indexing for frequent queries
+- Implement caching where appropriate (Redis, memory)
+- Paginate large result sets
+- Use connection pooling for databases
+- Implement request timeouts
+- Avoid N+1 queries
+- Use async operations for I/O-bound tasks
+
+### Middleware Patterns
+
+- Request logging (method, path, duration, status)
+- Request validation (body, params, query)
+- Authentication/authorization checks
+- Error handling (catch all errors, format responses)
+- CORS configuration
+- Request/response transformation
+
+### Documentation
+
+- Document all endpoints with examples
+- Use OpenAPI/Swagger specification
+- Document authentication requirements
+- Include sample requests and responses
+- Document error codes and their meanings
+- Keep documentation in sync with implementation

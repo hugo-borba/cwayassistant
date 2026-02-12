@@ -1,0 +1,76 @@
+# Google Cloud Functions Guidelines
+
+## Cloud Functions Gen2 Best Practices
+
+### HTTP Functions
+
+- Use Express.js-style middleware pattern
+- Return proper HTTP status codes (200, 201, 400, 401, 404, 500)
+- Always set appropriate response headers
+- Use res.status(code).send() or res.json() for responses
+- Handle CORS appropriately for client-facing functions
+- Validate request body/query parameters before processing
+- Use request.body, request.query, request.params correctly
+
+### Event Functions
+
+- Handle CloudEvents format properly
+- Extract event data from event.data
+- Validate event structure before processing
+- Use event.type to route to appropriate handlers
+- Implement idempotency for event processing
+- Handle duplicate events gracefully
+- Log event IDs for traceability
+
+### Cold Start Optimization
+
+- Initialize expensive resources outside function handler
+- Use global variables for reusable connections (DB, API clients)
+- Keep function bundle size minimal
+- Avoid loading unnecessary dependencies
+- Use dynamic imports for optional features
+- Configure function memory appropriately (512MB-2GB)
+
+### Environment Configuration
+
+- Use environment variables via process.env
+- Never hardcode project IDs, regions, or credentials
+- Use Secret Manager for sensitive values
+- Document required environment variables
+- Set default values where appropriate
+
+### Error Handling
+
+- Return appropriate HTTP status codes for errors
+- Log errors with structured logging (JSON format)
+- Use Cloud Logging severity levels (ERROR, WARNING, INFO, DEBUG)
+- Include request IDs in error logs
+- Don't expose internal error details to clients
+- Implement graceful degradation
+
+### Deployment
+
+- Use gen2 runtime (--gen2 flag)
+- Specify runtime version explicitly (nodejs20, nodejs22)
+- Set appropriate timeout values (default 60s, max 540s)
+- Configure max instances to control concurrency
+- Use --allow-unauthenticated carefully (only for public endpoints)
+- Tag functions with environment/version labels
+
+### Monitoring & Logging
+
+- Use console.log/error for Cloud Logging integration
+- Log structured JSON for better querying
+- Include correlation IDs across service calls
+- Use Cloud Trace for distributed tracing
+- Set up alerts for errors and latency
+- Monitor cold start metrics
+
+### Testing
+
+- Write unit tests with mocked GCP services
+- Use supertest for HTTP function testing
+- Mock Firestore, Pub/Sub, and other GCP APIs
+- Test both success and error paths
+- Include timeout and retry logic in tests
+- Run integration tests against dev/staging environments

@@ -1,0 +1,68 @@
+# JavaScript/Node.js Guidelines - ES Module
+
+## General
+
+- Follow best practices, lean towards agile methodologies
+- Prioritize modularity, DRY, performance, and security
+- First break tasks into distinct prioritized steps, then follow the steps
+- Prioritize tasks/steps you'll address in each response
+- Don't repeat yourself
+- Keep responses very short, unless I include a Vx value:
+ - V0 default, code golf
+ - V1 concise
+ - V2 simple
+ - V3 verbose, DRY with extracted functions
+
+## Code
+
+- Use ES module syntax (import/export) where possible
+- Where appropriate suggest refactorings and code improvements
+- Favor using the latest ES and Node.js features
+- Don't apologize for errors: fix them
+ * If you can't finish code, add TODO: comments
+
+## Comments
+
+- Comments should be created where the operation isn't clear from the code, or where uncommon libraries are used
+- Code must start with path/filename as a one-line comment
+- Comments should describe purpose, not effect
+
+## Async/Await Patterns
+
+- Always use async/await over raw promises
+- Handle errors with try/catch blocks
+- Never leave promises unhandled
+- Use Promise.all() for parallel operations
+- Use Promise.allSettled() when you need all results regardless of failures
+
+## Error Handling
+
+- Always validate inputs at function boundaries
+- Throw descriptive errors with context
+- Use custom error classes for specific error types
+- Log errors with structured logging
+- Never swallow errors silently
+
+## Module System
+
+- Use named exports for utilities and functions
+- Use default exports sparingly, only for main class/component
+- Keep modules focused on a single responsibility
+- Avoid circular dependencies
+- Group related functionality into modules
+
+## Performance
+
+- Use const and let, never var
+- Prefer immutable data patterns
+- Use array methods (map, filter, reduce) over loops when appropriate
+- Avoid unnecessary object/array copying
+- Use streaming APIs for large data sets
+
+## Security
+
+- Never hardcode secrets or credentials
+- Validate and sanitize all external inputs
+- Use environment variables for configuration
+- Keep dependencies updated
+- Run npm audit regularly

@@ -1,0 +1,391 @@
+<!-- Quality Standards Enforced: G (Maintainability) -->
+<!-- Template Base: JavaScript/Node.js + API/Backend -->
+<!-- Last Updated: 2026-02-12 -->
+
+# Architecture Rules
+
+## Standards Enforced
+
+- **G. Maintainability**: Controllers/services/model pattern, separation of concerns, DRY principle, dependency injection
+
+## Controllers/Services/Model Pattern
+
+### CRITICAL: This pattern MUST ALWAYS be respected
+
+The cwayassistant codebase follows a strict three-layer architecture:
+
+```
+┌─────────────────┐
+│  Controllers    │ ← HTTP/Events handlers; NO business logic
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│    Services     │ ← Business logic; API integrations
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│     Model       │ ← Domain entities; core logic
+└─────────────────┘
+```
+
+### Controllers Layer (`/controllers/`)
+
+**Responsibility:** Handle incoming HTTP requests or Pub/Sub events; delegate to services
+
+**Rules:**
+- Controllers MUST NOT contain business logic
+- Controllers MUST NOT directly call external APIs (Firestore, Chat, Vertex, Events)
+- Controllers MUST validate request structure (req.body, req.query, req.params)
+- Controllers MUST return appropriate HTTP status codes
+- Controllers SHOULD be thin (<50 lines per function)
+- Controllers MUST delegate all processing to services
+
+**Example Pattern:**
+```javascript
+// controllers/app.js
+const { authenticateUser } = require('../services/user-auth-chat-service');
+const { processMessage } = require('../services/aip-service');
+
+async function handleMessage(req, res) {
+  try {
+    // Validation only
+    if (!req.body || !req.body.message) {
+      return res.status(400).json({ error: 'Invalid request body' });
+    }
+    
+    // Delegate to services
+    const user = await authenticateUser(req);
+    const response = await processMessage(user, req.body.message);
+    
+    // Return response
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error({ error, requestBody: req.body });
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+```
+
+### Services Layer (`/services/`)
+
+**Responsibility:** Business logic, orchestration, external API calls
+
+**Rules:**
+- Services MUST contain all business logic
+- Services MUST handle external API integrations (Firestore, Chat, Vertex AI, Events)
+- Services SHOULD receive dependencies via constructor (dependency injection)
+- Services MUST NOT handle HTTP requests/responses directly (no req/res parameters)
+- Services MUST throw descriptive errors (not return error codes)
+- Services SHOULD be organized by domain (auth, firestore, aip, chat, events)
+
+**Dependency Injection Pattern:**
+```javascript
+// services/my-service.js
+class MyService {
+  constructor(firestoreClient, apiClient) {
+    this.firestore = firestoreClient;
+    this.api = apiClient;
+  }
+  
+  async performOperation(input) {
+    // Business logic here
+    const data = await this.firestore.collection('data').doc(input.id).get();
+    const result = await this.api.process(data);
+    return result;
+  }
+}
+
+// Export factory function for easy DI
+function createMyService() {
+  const { Firestore } = require('@google-cloud/firestore');
+  const apiClient = require('./api-client');
+  return new MyService(new Firestore(), apiClient);
+}
+
+module.exports = { MyService, createMyService };
+```
+
+### Model Layer (`/model/`)
+
+**Responsibility:** Domain entities, data structures, core domain logic
+
+**Rules:**
+- Models MUST define data structures and their validation
+- Models SHOULD contain entity-specific business rules
+- Models MUST NOT make API calls or access databases
+- Models MUST be pure (no side effects)
+- Models SHOULD export classes or factory functions
+
+**Example:**
+```javascript
+// model/message.js
+class Message {
+  constructor({ id, text, sender, timestamp, spaceId }) {
+    this.id = id;
+    this.text = text;
+    this.sender = sender;
+    this.timestamp = timestamp || new Date();
+    this.spaceId = spaceId;
+  }
+  
+  validate() {
+    if (!this.text || this.text.trim().length === 0) {
+      throw new Error('Message text cannot be empty');
+    }
+    if (!this.sender || !this.sender.name) {
+      throw new Error('Message sender must have a name');
+    }
+    return true;
+  }
+  
+  isQuestion() {
+    return this.text.trim().endsWith('?');
+  }
+  
+  toFirestoreDoc() {
+    return {
+      text: this.text,
+      sender: this.sender,
+      timestamp: this.timestamp,
+      spaceId: this.spaceId
+    };
+  }
+}
+
+module.exports = { Message };
+```
+
+## Module Organization
+
+### File Naming
+- Use kebab-case for file names: `user-auth-service.js`, `event-app.js`
+- Suffix service files with `-service.js`
+- Suffix controller files with `-app.js` or `-controller.js`
+- Keep file names descriptive but concise
+
+### Module Exports
+- Use named exports for utilities and multiple entities: `module.exports = { funcA, funcB }`
+- Use default exports sparingly, only for main class/function
+- Export factory functions for dependency injection: `createService()`
+- Group related functions in same module
+
+### Module Imports
+- Group imports by category: external deps, internal services, models
+- Use destructuring for named imports: `const { funcA, funcB } = require('./module')`
+- Avoid circular dependencies (refactor shared code to separate module)
+
+**Example:**
+```javascript
+// Good: Organized imports
+const { Firestore } = require('@google-cloud/firestore');
+const { VertexAI } = require('@google-cloud/vertexai');
+
+const { authenticateUser } = require('../services/user-auth-service');
+const { Message } = require('../model/message');
+
+// Bad: Mixed, unclear
+const firestore = require('@google-cloud/firestore');
+const { Message } = require('../model/message');
+const vertex = require('@google-cloud/vertexai');
+```
+
+## Separation of Concerns
+
+### Rule: One Responsibility Per Module
+- Each module should have ONE primary responsibility
+- If module does multiple unrelated things → split into separate modules
+- Services should be named after their domain (not generic names like `utils.js`)
+
+**Example:**
+```javascript
+// Bad: service doing too much
+// services/helper.js
+module.exports = {
+  authenticateUser() { ... },
+  sendEmail() { ... },
+  formatDate() { ... },
+  queryFirestore() { ... }
+};
+
+// Good: split by responsibility
+// services/auth-service.js
+module.exports = { authenticateUser };
+
+// services/email-service.js
+module.exports = { sendEmail };
+
+// utils/date-formatter.js
+module.exports = { formatDate };
+
+// services/firestore-service.js
+module.exports = { queryFirestore };
+```
+
+### HTTP/Events Trigger Separation
+- HTTP function handlers in `http_index.js` and `controllers/app.js`
+- Events function handlers in `events_index.js` and `controllers/event-app.js`
+- Shared services used by both (e.g., firestore-service, aip-service)
+
+## Dependency Injection
+
+### Why DI?
+- Enables testing with mock dependencies
+- Reduces coupling between modules
+- Makes dependencies explicit
+- Improves code maintainability
+
+### Pattern: Constructor Injection
+```javascript
+class UserService {
+  constructor(firestoreClient, authClient) {
+    this.firestore = firestoreClient;
+    this.auth = authClient;
+  }
+  
+  async getUser(userId) {
+    return this.firestore.collection('users').doc(userId).get();
+  }
+}
+
+// In production
+const { Firestore } = require('@google-cloud/firestore');
+const authClient = require('./auth-client');
+const service = new UserService(new Firestore(), authClient);
+
+// In tests
+const mockFirestore = { collection: () => ({ doc: () => ({ get: async () => mockData }) }) };
+const mockAuth = { validate: async () => true };
+const service = new UserService(mockFirestore, mockAuth);
+```
+
+### Global Variables for Cold Start Optimization
+For Google Cloud Functions, initialize expensive clients globally:
+
+```javascript
+// At module top-level (executed once per cold start)
+const { Firestore } = require('@google-cloud/firestore');
+const firestore = new Firestore();
+
+// In function handler (reuses connection)
+exports.handler = async (req, res) => {
+  const data = await firestore.collection('data').doc('id').get();
+  res.json(data);
+};
+```
+
+## Code Reuse (DRY Principle)
+
+### When to Extract Common Logic
+- Code duplicated in 3+ places → extract to utility
+- Complex logic repeated → extract to function
+- Similar patterns across services → extract to base class or shared module
+
+### Where to Put Extracted Code
+- Pure functions (no dependencies) → `utils/` directory
+- Reusable service logic → `services/common/` or base class
+- Data transformation → `model/` or `utils/transformers.js`
+- API client wrappers → `services/<api>-client.js`
+
+**Example:**
+```javascript
+// Before: Duplicated error handling in multiple services
+// services/service-a.js
+async function processA() {
+  try {
+    // ...
+  } catch (error) {
+    console.error({ error, service: 'A' });
+    throw new Error('Service A failed');
+  }
+}
+
+// services/service-b.js
+async function processB() {
+  try {
+    // ...
+  } catch (error) {
+    console.error({ error, service: 'B' });
+    throw new Error('Service B failed');
+  }
+}
+
+// After: Extracted to utility
+// utils/error-handler.js
+function handleServiceError(error, serviceName) {
+  console.error({ error, service: serviceName });
+  throw new Error(`${serviceName} failed: ${error.message}`);
+}
+
+// services/service-a.js
+const { handleServiceError } = require('../utils/error-handler');
+async function processA() {
+  try {
+    // ...
+  } catch (error) {
+    handleServiceError(error, 'Service A');
+  }
+}
+```
+
+## Anti-Patterns to Avoid
+
+### ❌ Business Logic in Controllers
+```javascript
+// BAD
+async function handleMessage(req, res) {
+  const message = req.body.message;
+  const isQuestion = message.text.endsWith('?'); // Business logic!
+  if (isQuestion) {
+    const response = await callVertexAI(message); // API call in controller!
+    return res.json(response);
+  }
+}
+```
+
+### ❌ HTTP Handling in Services
+```javascript
+// BAD
+async function processMessage(req, res) {
+  try {
+    const result = await doWork();
+    return res.status(200).json(result); // Services shouldn't touch req/res!
+  } catch (error) {
+    return res.status(500).json({ error });
+  }
+}
+```
+
+### ❌ Direct Database Access in Controllers
+```javascript
+// BAD
+async function getUser(req, res) {
+  const firestore = new Firestore();
+  const doc = await firestore.collection('users').doc(req.params.id).get(); // Direct DB access!
+  return res.json(doc.data());
+}
+```
+
+### ❌ God Services (doing too much)
+```javascript
+// BAD: One service doing everything
+class AppService {
+  async authenticateUser() { ... }
+  async sendMessage() { ... }
+  async queryAI() { ... }
+  async storeData() { ... }
+  // 20 more unrelated methods...
+}
+```
+
+## Migration Strategy for Existing Code
+
+If existing code violates architecture rules:
+
+1. **Identify the violation** (business logic in controller, HTTP in service, etc.)
+2. **Extract the problematic code** to appropriate layer
+3. **Update caller** to use new interface
+4. **Add tests** for extracted code
+5. **Verify** existing tests still pass
+6. **Document** in commit message: `refactor(arch): move business logic from controller to service`
+
+Don't refactor everything at once; incremental improvements are acceptable.

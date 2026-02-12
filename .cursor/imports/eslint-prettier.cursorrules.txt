@@ -1,0 +1,97 @@
+# ESLint + Prettier Configuration Guidelines
+
+## Code Quality Standards
+
+### ESLint Rules
+
+- Use `eslint:recommended` as baseline
+- Configure environment (node, es2022, mocha)
+- Enable strict mode where appropriate
+- Enforce consistent code style
+
+### Key ESLint Rules to Enforce
+
+**Variables:**
+- `no-unused-vars`: Error with exceptions for `_` prefix
+- `no-var`: Error (always use const/let)
+- `prefer-const`: Warning (use const when not reassigned)
+- `no-undef`: Error (undefined variables)
+
+**Code Quality:**
+- `no-console`: Off for Node.js (allow console.log)
+- `no-debugger`: Error
+- `no-eval`: Error (security risk)
+- `no-implied-eval`: Error
+- `eqeqeq`: Warning (prefer === over ==)
+- `curly`: Warning (always use braces for blocks)
+
+**Best Practices:**
+- `consistent-return`: Warning
+- `default-case`: Warning (switches)
+- `no-empty-function`: Warning
+- `no-return-await`: Warning
+- `require-await`: Warning
+
+**ES6+ Features:**
+- `arrow-spacing`: Error
+- `no-duplicate-imports`: Error
+- `prefer-arrow-callback`: Warning
+- `prefer-template`: Warning
+- `template-curly-spacing`: Error
+
+### Prettier Configuration
+
+**Formatting Standards:**
+- `semi: true` - Always use semicolons
+- `singleQuote: true` - Use single quotes for strings
+- `trailingComma: "es5"` - Trailing commas where valid in ES5
+- `printWidth: 80` - Wrap lines at 80 characters
+- `tabWidth: 2` - 2 spaces for indentation
+- `useTabs: false` - Use spaces, not tabs
+- `arrowParens: "always"` - Always include parens in arrow functions
+- `endOfLine: "lf"` - Unix line endings
+
+### Integration
+
+- Use `eslint-config-prettier` to disable ESLint formatting rules
+- Run Prettier before ESLint (format, then lint)
+- Configure IDE to format on save
+- Run linting in pre-commit hooks
+- Include lint checks in CI/CD pipeline
+
+### npm Scripts
+
+```json
+{
+  "lint": "eslint .",
+  "lint:fix": "eslint . --fix",
+  "format": "prettier --write .",
+  "format:check": "prettier --check ."
+}
+```
+
+### IDE Configuration
+
+- Enable ESLint extension
+- Enable Prettier extension
+- Configure format on save
+- Show inline linting errors
+- Use project's .eslintrc.json and .prettierrc.json
+
+### Exceptions and Overrides
+
+- Use `// eslint-disable-next-line` sparingly
+- Always include reason for disabling rules
+- Document exceptions in .eslintrc.json
+- Use .eslintignore for generated files
+- Use .prettierignore for non-source files
+
+### Best Practices
+
+- Run linter before committing code
+- Fix all linting errors (not just warnings)
+- Don't commit code with linting errors
+- Use --fix for auto-fixable issues
+- Keep ESLint and Prettier versions updated
+- Review and update rules periodically
+- Document project-specific rule decisions

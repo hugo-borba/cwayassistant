@@ -1,0 +1,209 @@
+# Git Workflow Guidelines
+
+## Conventional Commit Messages
+
+Use the Conventional Commit Messages specification to generate commit messages.
+
+The commit message should be structured as follows:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Commit Types
+
+- **fix**: Patches a bug in the codebase (PATCH in Semantic Versioning)
+- **feat**: Introduces a new feature (MINOR in Semantic Versioning)
+- **BREAKING CHANGE**: Breaking API change (MAJOR in Semantic Versioning)
+- **build**: Changes to build system or dependencies
+- **chore**: Maintenance tasks, no production code change
+- **ci**: Changes to CI configuration files and scripts
+- **docs**: Documentation only changes
+- **style**: Code style changes (formatting, missing semi-colons, etc.)
+- **refactor**: Code change that neither fixes a bug nor adds a feature
+- **perf**: Performance improvements
+- **test**: Adding missing tests or correcting existing tests
+
+### Examples
+
+```
+feat(auth): add OAuth2 authentication support
+
+Implement OAuth2 flow for user authentication using Google provider.
+Includes token refresh mechanism and session management.
+
+Closes #123
+```
+
+```
+fix(api): handle null response from external service
+
+Add null check before processing response from payment gateway.
+Prevents application crash when service returns unexpected null.
+```
+
+```
+docs: update README with deployment instructions
+
+Add section for deploying to Google Cloud Functions with
+required environment variables and configuration steps.
+```
+
+```
+refactor(services): extract common error handling logic
+
+Create centralized error handler middleware to reduce code duplication
+across service modules. Improves maintainability and consistency.
+```
+
+### Commit Message Rules
+
+1. Type MUST be lowercase (feat, fix, docs, etc.)
+2. Scope SHOULD be specific noun (auth, api, ui, service name)
+3. Description MUST be lowercase, short summary (50 chars max)
+4. Body SHOULD explain WHAT and WHY, not HOW
+5. Footer SHOULD reference issues (Closes #123, Fixes #456)
+6. Breaking changes MUST include "BREAKING CHANGE:" in footer or "!" after type
+
+## Branching Strategy
+
+### Branch Types
+
+- **main/master**: Production-ready code, always stable
+- **develop**: Integration branch for features (if using Git Flow)
+- **feature/***: New features (e.g., feature/oauth-login)
+- **bugfix/***: Bug fixes (e.g., bugfix/null-check)
+- **hotfix/***: Urgent production fixes
+- **release/***: Release preparation (if using Git Flow)
+
+### Branch Naming
+
+- Use lowercase with hyphens
+- Be descriptive but concise
+- Include issue number if applicable
+  - feature/123-add-payment-processing
+  - bugfix/456-fix-memory-leak
+  - hotfix/789-security-vulnerability
+
+### Workflow
+
+1. **Create branch** from main/develop
+   ```bash
+   git checkout -b feature/new-feature
+   ```
+
+2. **Make changes** with frequent, atomic commits
+   ```bash
+   git add .
+   git commit -m "feat: add user profile endpoint"
+   ```
+
+3. **Push branch** to remote
+   ```bash
+   git push -u origin feature/new-feature
+   ```
+
+4. **Create Pull Request** with:
+   - Clear title and description
+   - Link to related issues
+   - Screenshots/demos if applicable
+   - Checklist of changes
+
+5. **Code Review** process:
+   - At least one approval required
+   - Address all comments
+   - Resolve conflicts with main
+   - Ensure CI/CD passes
+
+6. **Merge** after approval:
+   - Squash commits for feature branches
+   - Preserve commits for complex features
+   - Delete branch after merge
+
+## Pull Request Guidelines
+
+### PR Title
+
+- Follow commit message format
+- Be specific and descriptive
+- Include issue number if applicable
+
+**Examples:**
+- feat(api): add user authentication endpoints (#123)
+- fix(ui): resolve button alignment issue (#456)
+- docs: update API documentation with new endpoints
+
+### PR Description
+
+Include:
+1. **Summary**: What changed and why
+2. **Changes**: Bullet list of specific changes
+3. **Testing**: How changes were tested
+4. **Screenshots**: Visual changes (if applicable)
+5. **Breaking Changes**: List any breaking changes
+6. **Checklist**:
+   - [ ] Tests added/updated
+   - [ ] Documentation updated
+   - [ ] No linting errors
+   - [ ] All tests passing
+   - [ ] No merge conflicts
+
+### Code Review Best Practices
+
+**For Authors:**
+- Keep PRs small and focused (<400 lines)
+- Self-review before requesting review
+- Respond to comments promptly
+- Don't take feedback personally
+
+**For Reviewers:**
+- Review within 24 hours
+- Be constructive and specific
+- Ask questions rather than make demands
+- Approve when satisfied, request changes if needed
+
+## Version Tagging
+
+### Semantic Versioning
+
+Format: `vMAJOR.MINOR.PATCH` (e.g., v1.2.3)
+
+- **MAJOR**: Breaking changes (incompatible API changes)
+- **MINOR**: New features (backward compatible)
+- **PATCH**: Bug fixes (backward compatible)
+
+### Tagging Process
+
+```bash
+# Create annotated tag
+git tag -a v1.2.0 -m "Release version 1.2.0: Add OAuth2 support"
+
+# Push tag to remote
+git push origin v1.2.0
+
+# List tags
+git tag -l
+```
+
+### Pre-release Versions
+
+- `v1.2.0-alpha.1`: Alpha release
+- `v1.2.0-beta.2`: Beta release
+- `v1.2.0-rc.1`: Release candidate
+
+## Best Practices
+
+- Commit early and often
+- Write meaningful commit messages
+- Pull before pushing to avoid conflicts
+- Never commit sensitive data (use .gitignore)
+- Use .gitignore properly
+- Don't commit node_modules, build artifacts, IDE files
+- Keep branches up to date with main
+- Delete merged branches
+- Use git stash for work-in-progress
+- Review diff before committing
