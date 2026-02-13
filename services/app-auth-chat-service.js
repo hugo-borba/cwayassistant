@@ -1,25 +1,3 @@
-/**
- * Copyright 2024 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * ...
- */
-
-/**
- * @fileoverview Serviço que chama a Google Chat API usando as credenciais do USUÁRIO
- * (OAuth2) para ler histórico de mensagens do espaço.
- *
- * Isso é o que permite tentar capturar mensagens "anteriores à adição do bot",
- * porque quem lista é o usuário (membro do espaço), não o app/bot.
- *
- * Referência:
- * - spaces.messages.list: lista mensagens em um space e é paginado.
- * - Escopos de usuário aceitos incluem chat.messages.readonly / chat.messages. 
- *
- * Observação:
- * - Se spaceHistoryState estiver HISTORY_OFF, mensagens podem ser retidas só por 24h. :contentReference[oaicite:3]{index=3}
- */
-
 'use strict';
 
 const chat = require('@googleapis/chat');

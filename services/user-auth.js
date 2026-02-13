@@ -94,8 +94,7 @@ exports.oauth2callback = async function (req, res) {
   let state;
   try {
     state = base64decode(q.state);
-  } catch {
-    // Error ignored - invalid state caught by validation
+  } catch (e) {
     console.error('Error: Invalid request state: ' + q.state);
     res.status(400).send('Error: Invalid request state');
     return;
