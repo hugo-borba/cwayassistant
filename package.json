@@ -1,7 +1,7 @@
 {
-  "name": "ai-knowledge-assistant",
-  "version": "2.0.0",
-  "description": "A sample AI Knowledge Assistant app for Google Chat",
+  "name": "cwayassistant",
+  "version": "0.1.0",
+  "description": "Google Chat HTTP function for cwayassistant",
   "main": "index.js",
   "scripts": {
     "test": "mocha -p -j 2 -t 5s \"test/**/*.test.js\"",
@@ -10,38 +10,26 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "node --check *.js controllers/**/*.js services/**/*.js model/**/*.js"
+    "typecheck": "node --check *.js",
+    "dev": "functions-framework --target=app --port=8080"
   },
   "keywords": [
-    "AI Knowledge Assistant",
     "Google Chat",
-    "Gemini",
-    "Vertex AI",
-    "Google Workspace Add-On"
+    "HTTP Function"
   ],
-  "contributors": [
-    "Dennis Qin",
-    "Gustavo Tondello",
-    "Pierrick Voulet"
-  ],
+  "author": "Hugo Borba",
   "license": "Apache-2.0",
   "dependencies": {
-    "@google-cloud/firestore": "^7.6.0",
     "@google-cloud/functions-framework": "^3.3.0",
-    "@google-cloud/vertexai": "^0.5.0",
     "@googleapis/chat": "^22.0.0",
-    "@googleapis/workspaceevents": "^1.0.0",
     "google-auth-library": "^9.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.16.0",
     "chai": "^4.3.10",
-    "cloudevents": "^8.0.0",
     "eslint": "^9.16.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-node": "^11.1.0",
-    "express": "^4.18.3",
-    "https": "^1.0.0",
     "mocha": "^10.2.0",
     "nyc": "^15.1.0",
     "prettier": "^3.2.5",
