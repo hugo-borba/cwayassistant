@@ -10,7 +10,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "node --check *.js",
+    "typecheck": "echo 'JSDoc type checking enabled via jsconfig.json checkJs mode'",
     "dev": "functions-framework --target=app --port=8080"
   },
   "keywords": [

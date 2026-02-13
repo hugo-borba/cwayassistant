@@ -30,7 +30,7 @@ This document tracks all imported `.cursorrules` templates and their usage in th
   - Root `/.cursorrules` → GCF Gen2 deployment specifics, HTTP/Events functions
   - `/.cursor/rules/cloud-functions.mdc` → Serverless patterns, cold start optimization, event handling
 - **Modifications:** Original template based on official Google Cloud Functions documentation and gen2 best practices
-- **Note:** *Template marked as "Original" - created from GCP docs as no specific GCF template exists in awesome-cursorrules*
+- **Note:** _Template marked as "Original" - created from GCP docs as no specific GCF template exists in awesome-cursorrules_
 
 ### 3. Testing/Mocha Template
 
@@ -62,7 +62,7 @@ This document tracks all imported `.cursorrules` templates and their usage in th
   - Root `/.cursorrules` → Code quality gates, formatting standards
   - `/.cursor/rules/code-style.mdc` → ESLint configuration, Prettier configuration, integration workflows
 - **Modifications:** Original template based on ESLint recommended config and Prettier defaults for Node.js projects
-- **Note:** *Template marked as "Original" - synthesized from ESLint/Prettier official docs*
+- **Note:** _Template marked as "Original" - synthesized from ESLint/Prettier official docs_
 
 ### 6. Documentation Template
 
@@ -73,7 +73,7 @@ This document tracks all imported `.cursorrules` templates and their usage in th
   - Root `/.cursorrules` → JSDoc requirements, README structure
   - `/.cursor/rules/documentation.mdc` → JSDoc syntax, inline comments, README sections, ADR format
 - **Modifications:** Original template based on JSDoc official specification and documentation best practices
-- **Note:** *Template marked as "Original" - created from JSDoc docs and README best practices*
+- **Note:** _Template marked as "Original" - created from JSDoc docs and README best practices_
 
 ### 7. Git Workflow Template
 
@@ -87,17 +87,18 @@ This document tracks all imported `.cursorrules` templates and their usage in th
 
 ## Template Mapping
 
-| Template               | Root Section in /.cursorrules                    | Domain Rules Influenced                        | Quality Standards |
-| ---------------------- | ------------------------------------------------ | ---------------------------------------------- | ----------------- |
-| JavaScript/Node.js     | Project Facts, Async Patterns, Module System    | architecture.mdc, code-style.mdc               | A, D, G           |
-| Google Cloud Functions | GCF Gen2 Specifics, Cold Start, Event Handling   | cloud-functions.mdc                            | E, F              |
-| Testing/Mocha          | Testing Requirements, Coverage Standards         | testing.mdc                                    | B                 |
-| API/Backend            | HTTP Handlers, RESTful Principles, Error Formats | architecture.mdc, google-apis.mdc              | E, G              |
-| ESLint+Prettier        | Code Quality Gates, Formatting Rules            | code-style.mdc                                 | A                 |
-| Documentation          | JSDoc, README, ADR                               | documentation.mdc                              | D                 |
-| Git Workflow           | Commit Conventions, Branching                    | workflow.mdc                                   | H                 |
+| Template               | Root Section in /.cursorrules                    | Domain Rules Influenced           | Quality Standards |
+| ---------------------- | ------------------------------------------------ | --------------------------------- | ----------------- |
+| JavaScript/Node.js     | Project Facts, Async Patterns, Module System     | architecture.mdc, code-style.mdc  | A, D, G           |
+| Google Cloud Functions | GCF Gen2 Specifics, Cold Start, Event Handling   | cloud-functions.mdc               | E, F              |
+| Testing/Mocha          | Testing Requirements, Coverage Standards         | testing.mdc                       | B                 |
+| API/Backend            | HTTP Handlers, RESTful Principles, Error Formats | architecture.mdc, google-apis.mdc | E, G              |
+| ESLint+Prettier        | Code Quality Gates, Formatting Rules             | code-style.mdc                    | A                 |
+| Documentation          | JSDoc, README, ADR                               | documentation.mdc                 | D                 |
+| Git Workflow           | Commit Conventions, Branching                    | workflow.mdc                      | H                 |
 
 **Quality Standards Legend:**
+
 - A: Code Quality
 - B: Testing
 - C: Security

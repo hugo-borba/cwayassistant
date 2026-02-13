@@ -1,6 +1,6 @@
 ---
 name: Bootstrap Cursor Rules Node.js
-overview: "Bootstrap completo de sistema de regras em camadas para cwayassistant (Node.js 22 + Google Cloud Functions gen2): import/reuse de templates do awesome-cursorrules, expansão em domain rules estruturadas, estabelecimento de documentação viva com proveniência rastreável, configuração de tooling (ESLint+Prettier+JSDoc), e validação rigorosa em 4 fases iterativas. | Fase 1 (Discovery & Import): pesquisar repositório, importar 7 templates fundamentais via extensão Cursor Rules, snapshot em /.cursor/imports/, registrar proveniência completa. | Fase 2 (Foundation): montar /.cursorrules root por combinação de templates, expandir em 8 domain rules (/.cursor/rules/*.mdc), preservar arquitetura controllers/services/model. | Fase 3 (Documentation): migrar README.md para inglês (preservar português como README.pt-BR.md), criar AGENTS.md operacional, adicionar diagramas Mermaid e repo tree com proveniência. | Fase 4 (Tooling & Validation): adicionar devDeps (eslint, prettier, plugins), criar configs (.eslintrc.json, .prettierrc.json, jsconfig.json), instalar deps, criar ADR, executar validation loop (lint+format+typecheck), obter review approval, abrir gate para produção."
+overview: 'Bootstrap completo de sistema de regras em camadas para cwayassistant (Node.js 22 + Google Cloud Functions gen2): import/reuse de templates do awesome-cursorrules, expansão em domain rules estruturadas, estabelecimento de documentação viva com proveniência rastreável, configuração de tooling (ESLint+Prettier+JSDoc), e validação rigorosa em 4 fases iterativas. | Fase 1 (Discovery & Import): pesquisar repositório, importar 7 templates fundamentais via extensão Cursor Rules, snapshot em /.cursor/imports/, registrar proveniência completa. | Fase 2 (Foundation): montar /.cursorrules root por combinação de templates, expandir em 8 domain rules (/.cursor/rules/*.mdc), preservar arquitetura controllers/services/model. | Fase 3 (Documentation): migrar README.md para inglês (preservar português como README.pt-BR.md), criar AGENTS.md operacional, adicionar diagramas Mermaid e repo tree com proveniência. | Fase 4 (Tooling & Validation): adicionar devDeps (eslint, prettier, plugins), criar configs (.eslintrc.json, .prettierrc.json, jsconfig.json), instalar deps, criar ADR, executar validation loop (lint+format+typecheck), obter review approval, abrir gate para produção.'
 todos:
   - id: phase-1-discovery-import-task-1-research-repo-internal
     content: "[PHASE 1.1] Research Repo Internal → 'ler README.md atual, package.json, estrutura controllers/services/model/test, identificar stack (Mocha, npm, Node.js 22), localizar credentials.json/deploy.sh, revisar commits recentes via git log'"
@@ -146,7 +146,7 @@ flowchart TD
     P1_Criteria --> P1_Review[Review Approval<br/>Fase 1]
     P1_Review -->|Aprovado| P1_Gate[Gate 1 ABERTO]
     P1_Review -->|Rejeitado| P1_Fix
-    
+
     P1_Gate --> P2_Research[PHASE 2: Foundation<br/>Research Imports + Patterns]
     P2_Research --> P2_Execute[Executar: Build Root .cursorrules<br/>Expand 8 Domain Rules]
     P2_Execute --> P2_Validate{Validation Loop<br/>Rules OK?}
@@ -156,7 +156,7 @@ flowchart TD
     P2_Criteria --> P2_Review[Review Approval<br/>Fase 2]
     P2_Review -->|Aprovado| P2_Gate[Gate 2 ABERTO]
     P2_Review -->|Rejeitado| P2_Fix
-    
+
     P2_Gate --> P3_Research[PHASE 3: Documentation<br/>Research README + AGENTS.md]
     P3_Research --> P3_Execute[Executar: Migrate README<br/>Create AGENTS.md]
     P3_Execute --> P3_Validate{Validation Loop<br/>Docs OK?}
@@ -166,7 +166,7 @@ flowchart TD
     P3_Criteria --> P3_Review[Review Approval<br/>Fase 3]
     P3_Review -->|Aprovado| P3_Gate[Gate 3 ABERTO]
     P3_Review -->|Rejeitado| P3_Fix
-    
+
     P3_Gate --> P4_Research[PHASE 4: Tooling & Validation<br/>Research ESLint+Prettier+JSDoc]
     P4_Research --> P4_Execute[Executar: Update package.json<br/>Create Configs<br/>Install Deps<br/>Create ADR]
     P4_Execute --> P4_Validate{Validation Loop<br/>Lint+Format+Typecheck+Test?}
@@ -177,18 +177,16 @@ flowchart TD
     P4_Criteria --> P4_Review[Review Approval<br/>Final]
     P4_Review -->|Aprovado| P4_Gate[Gate 4 ABERTO]
     P4_Review -->|Rejeitado| P4_Fix
-    
+
     P4_Gate --> Summary[Comprehensive Summary]
     Summary --> End([Fim: Bootstrap Concluído])
-    
+
     style P1_Gate fill:#90EE90
     style P2_Gate fill:#90EE90
     style P3_Gate fill:#90EE90
     style P4_Gate fill:#90EE90
     style End fill:#FFD700
 ```
-
-
 
 ## Repo File Tree (CURRENT STATE)
 
@@ -386,4 +384,3 @@ Nenhum comando de alto risco. Apenas leituras e criações de arquivos/diretóri
 3. **Deploy Validation:** Executar `./deploy.sh` (dry-run se disponível) para confirmar que bootstrap não afeta deploy process
 4. **Team Onboarding:** Compartilhar `AGENTS.md` com time (se aplicável) para alinhar sobre operating manual e rules maintenance process
 5. **Continuous Improvement:** Adicionar tarefas futuras para: (a) expandir coverage de testes, (b) adicionar integration tests, (c) considerar migração gradual para TypeScript se type safety se tornar crítico, (d) adicionar CI/CD pipeline com GitHub Actions (lint+test+security checks)
-

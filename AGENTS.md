@@ -41,11 +41,13 @@ npm install
 ### Development Workflow
 
 **Run tests:**
+
 ```bash
 npm test
 ```
 
 **Check code quality:**
+
 ```bash
 npm run lint                # ESLint check (0 errors required)
 npm run format:check        # Prettier formatting check
@@ -53,12 +55,14 @@ npm run typecheck           # JSDoc type checking (TypeScript checkJs mode)
 ```
 
 **Auto-fix issues:**
+
 ```bash
 npm run lint -- --fix       # Auto-fix linting issues where possible
 npm run format              # Auto-format code (review diffs before committing)
 ```
 
 **Quality Gates (run before committing):**
+
 ```bash
 npm run lint && npm run format:check && npm run typecheck && npm test
 ```
@@ -66,6 +70,7 @@ npm run lint && npm run format:check && npm run typecheck && npm test
 ### Local Development
 
 **Run HTTP function locally:**
+
 ```bash
 npx functions-framework --target=app --port=8080
 
@@ -76,6 +81,7 @@ curl -X POST http://localhost:8080/endpoint \
 ```
 
 **Run Events function locally:**
+
 ```bash
 npx functions-framework --target=eventsApp --signature-type=cloudevent --port=8081
 
@@ -92,11 +98,13 @@ curl -X POST http://localhost:8081 \
 ### Deployment
 
 **Deploy to production:**
+
 ```bash
 ./deploy.sh
 ```
 
 **Or deploy manually:**
+
 ```bash
 # HTTP function
 gcloud functions deploy app \
@@ -127,6 +135,7 @@ Controllers → Services → Model
 ```
 
 **Controllers** (`/controllers/`):
+
 - Handle HTTP requests and Pub/Sub events
 - Validate request structure (req.body, req.query, req.params)
 - Return appropriate HTTP status codes
@@ -134,6 +143,7 @@ Controllers → Services → Model
 - **NO direct API calls** (Firestore, Chat, Vertex AI, etc.)
 
 **Services** (`/services/`):
+
 - Contain ALL business logic
 - Make external API calls (Firestore, Chat API, Vertex AI, Events API)
 - Receive dependencies via constructor (dependency injection)
@@ -141,6 +151,7 @@ Controllers → Services → Model
 - Throw descriptive errors (don't return error codes)
 
 **Model** (`/model/`):
+
 - Define data structures and domain entities
 - Contain entity-specific validation and business rules
 - **Pure functions** (no side effects, no API calls)
@@ -152,20 +163,20 @@ User sends message
   → controllers/app.js (HTTP handler)
     - Validates request body
     - Delegates to services
-  
+
   → services/user-auth-chat-service.js (OAuth2 authentication)
     - Validates/refreshes tokens
     - Returns authenticated client
-  
+
   → services/firestore-service.js (store message)
     - Saves message to Firestore
     - Returns document ID
-  
+
   → services/aip-service.js (Vertex AI query)
     - Detects if message is question
     - Generates answer from context
     - Returns AI response
-  
+
   ← Response back to user via Chat API
 ```
 
@@ -195,11 +206,13 @@ Understanding when to ask for clarification vs proceeding with assumptions is cr
 ### Examples
 
 **Ask:**
+
 - "I want to change how we store OAuth2 tokens in Firestore to use a different encryption method."
 - "Should we add a new collection for caching Vertex AI responses?"
 - "I'm thinking of refactoring the Events handler to process multiple event types in parallel."
 
 **Proceed (with summary in commit):**
+
 - Extract common retry logic to utility function (refactor)
 - Add JSDoc to `getUserData` function (documentation)
 - Fix ESLint error about unused variable (code quality)
@@ -231,7 +244,7 @@ Understanding when to ask for clarification vs proceeding with assumptions is cr
   - **Action:** Update `scripts` section
 - **Maintain consistent pinning policy:** Use `^` for minor compatibility (e.g., `^9.1.0`)
 
-#### 3. Update /.cursor/rules/*.mdc if:
+#### 3. Update /.cursor/rules/\*.mdc if:
 
 - New patterns emerge (e.g., new Firestore query pattern)
   - **Action:** Add to relevant domain rule file (e.g., `google-apis.mdc`)
@@ -288,10 +301,12 @@ When you need to import a new template:
 ### Updating Existing Rules
 
 **Small change** (minor fix, clarification):
+
 - Edit `.mdc` file directly
 - Note change in git commit message: `docs(rules): clarify retry logic in google-apis.mdc`
 
 **Large change** (new patterns, significant additions):
+
 - Re-import template if available (check for updates in awesome-cursorrules)
 - Or create new `.mdc` version (e.g., `google-apis-v2.mdc`)
 - Document rationale in `PROVENANCE.md` under "Update History"
@@ -301,6 +316,7 @@ When you need to import a new template:
 ### Common Issues
 
 **Tests Failing:**
+
 ```bash
 # Check which tests are failing
 npm test
@@ -316,6 +332,7 @@ npm run lint
 ```
 
 **Linting Errors:**
+
 ```bash
 # See what's wrong
 npm run lint
@@ -328,6 +345,7 @@ npm run lint -- --fix
 ```
 
 **Type Checking Errors:**
+
 ```bash
 # See JSDoc type errors
 npm run typecheck
@@ -342,6 +360,7 @@ async function getUser(userId) { ... }
 ```
 
 **Deployment Failures:**
+
 ```bash
 # Check gcloud CLI is authenticated
 gcloud auth list
@@ -355,6 +374,7 @@ gcloud functions logs read events-app --gen2 --region=us-central1 --limit=50
 ```
 
 **OAuth2 Errors:**
+
 ```bash
 # Check credentials.json exists and is valid
 cat credentials.json
@@ -370,16 +390,16 @@ cat credentials.json
 
 This project enforces 8 quality standard categories:
 
-| Category           | Standards                                                                                       | Enforced By                         | Validation                        |
-| ------------------ | ----------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------- |
-| A. Code Quality    | Complexity ≤10, naming conventions, no unused vars, async/await patterns                       | ESLint, Prettier                    | `npm run lint`                    |
-| B. Testing         | ≥70% overall coverage, ≥90% services, Mocha structure, mocking                                  | Mocha, nyc                          | `npm test`, `npm run test:coverage` |
-| C. Security        | No hardcoded secrets, OAuth2 best practices, input validation                                   | Manual review, SAST checks          | Code review, `npm audit`          |
-| D. Documentation   | JSDoc 100% public functions, README maintenance, ADR process                                    | JSDoc checkJs, manual review        | `npm run typecheck`, code review  |
-| E. Reliability     | Error handling, retry logic (exponential backoff), timeouts                                     | Manual review, testing              | Tests, code review                |
-| F. Performance     | Cold start <3s, caching, Firestore indexing                                                     | Manual review, monitoring           | Cloud Monitoring                  |
-| G. Maintainability | Controllers/services/model pattern, DRY, dependency injection                                   | Manual review, architecture rules   | Code review                       |
-| H. Git & Workflow  | Conventional commits, PR reviews, semantic versioning                                           | Git hooks (optional), manual review | Commit message format             |
+| Category           | Standards                                                                | Enforced By                         | Validation                          |
+| ------------------ | ------------------------------------------------------------------------ | ----------------------------------- | ----------------------------------- |
+| A. Code Quality    | Complexity ≤10, naming conventions, no unused vars, async/await patterns | ESLint, Prettier                    | `npm run lint`                      |
+| B. Testing         | ≥70% overall coverage, ≥90% services, Mocha structure, mocking           | Mocha, nyc                          | `npm test`, `npm run test:coverage` |
+| C. Security        | No hardcoded secrets, OAuth2 best practices, input validation            | Manual review, SAST checks          | Code review, `npm audit`            |
+| D. Documentation   | JSDoc 100% public functions, README maintenance, ADR process             | JSDoc checkJs, manual review        | `npm run typecheck`, code review    |
+| E. Reliability     | Error handling, retry logic (exponential backoff), timeouts              | Manual review, testing              | Tests, code review                  |
+| F. Performance     | Cold start <3s, caching, Firestore indexing                              | Manual review, monitoring           | Cloud Monitoring                    |
+| G. Maintainability | Controllers/services/model pattern, DRY, dependency injection            | Manual review, architecture rules   | Code review                         |
+| H. Git & Workflow  | Conventional commits, PR reviews, semantic versioning                    | Git hooks (optional), manual review | Commit message format               |
 
 ### Pre-Commit Checklist
 
@@ -437,6 +457,7 @@ When rules/standards change significantly:
 ## Useful Commands Reference
 
 ### Git Workflow
+
 ```bash
 # Start feature
 git checkout -b feature/my-feature
@@ -454,6 +475,7 @@ git branch -d feature/my-feature
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 npm test
@@ -469,6 +491,7 @@ npx mocha --watch test/**/*.test.js
 ```
 
 ### Quality Gates
+
 ```bash
 # Full quality check
 npm run lint && npm run format:check && npm run typecheck && npm test
@@ -485,6 +508,7 @@ npm run format         # Format code (review diffs!)
 ```
 
 ### Cloud Functions
+
 ```bash
 # View logs
 gcloud functions logs read app --gen2 --region=us-central1 --limit=50
