@@ -11,7 +11,7 @@
 
 ## ESLint Configuration
 
-Configuration file: `.eslintrc.json`
+Configuration file: `eslint.config.js` (ESLint 9.x flat config format)
 
 ### Core Rules Enforced
 
