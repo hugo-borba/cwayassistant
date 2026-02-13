@@ -11,18 +11,17 @@ const CHAT_BOT_SCOPE = ['https://www.googleapis.com/auth/chat.bot'];
 
 /**
  * Initializes the Workspace Events client with app credentials.
- * @returns {Promise<workspaceevents.workspaceevents_v1.Workspaceevents>} An
- *     initialized Workspace Events  API client.
+ * @returns {workspaceevents.workspaceevents_v1.Workspaceevents} An
+ *     initialized Workspace Events API client.
  */
-async function initializeWorkspaceEventsClient() {
+function initializeWorkspaceEventsClient() {
   // Authenticate with Application Default Credentials.
   const auth = new workspaceevents.auth.GoogleAuth({scopes: CHAT_BOT_SCOPE});
-  const authClient = await auth.getClient();
 
   // Create the Workspace Events API client with app credentials.
   const workspaceEventsClient = workspaceevents.workspaceevents({
     version: 'v1',
-    auth: authClient
+    auth: auth
   });
   return workspaceEventsClient;
 }
@@ -49,7 +48,7 @@ exports.AppAuthEventsService = {
    *     subscription deletes.
    */
   deleteSpaceSubscriptions: async function (spaceName) {
-    const workspaceEventsClient = await initializeWorkspaceEventsClient();
+    const workspaceEventsClient = initializeWorkspaceEventsClient();
     let promises = [];
     let pageToken = '';
     do {
